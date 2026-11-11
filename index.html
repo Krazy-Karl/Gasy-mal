@@ -6,107 +6,51 @@
   <title>Gasy-mal – Comptage de points</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 480px; margin: 3rem auto; padding: 0 1rem; text-align: center; }
-    button { font-size: 1rem; padding: .7rem 1.2rem; border: 0; border-radius: 6px; background: #0078d4; color: #fff; cursor: pointer; }
-    button:hover { background: #106ebe; }
-    #deconnexion { background: #666; }
+    button { font-size: 1rem; padding: .7rem 1.2rem; border: 0; border-radius: 6px; background: #1a73e8; color: #fff; cursor: pointer; }
+    button:disabled { background: #999; cursor: default; }
     #message { margin-top: 1.5rem; }
     .erreur { color: #b00020; }
+    .ok { color: #137333; }
   </style>
 </head>
 <body>
   <h1>Comptage de points</h1>
-
-  <button id="connexion">Se connecter avec Microsoft</button>
-  <button id="deconnexion" hidden>Se déconnecter</button>
-
+  <button id="tester">Tester la connexion</button>
   <p id="message"></p>
-
-  <!-- Bibliothèque de connexion Microsoft (MSAL), chargée depuis internet -->
-  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
 
   <script>
     // =====================================================================
-    // ▼▼▼  À MODIFIER : collez ici votre "ID d'application (client)"  ▼▼▼
-    // (voir le guide Entra : c'est un identifiant public, pas un secret)
+    // ▼▼▼  À MODIFIER : collez ici l'adresse de votre application web  ▼▼▼
+    // (elle ressemble à https://script.google.com/macros/s/XXXX/exec)
     // =====================================================================
-    const CLIENT_ID = "COLLEZ-VOTRE-CLIENT-ID-ICI";
+    const APPS_SCRIPT_URL = "COLLEZ-L-ADRESSE-DU-SCRIPT-ICI";
     // =====================================================================
 
-    // Adresse de la page (doit être IDENTIQUE à celle enregistrée dans Entra).
-    // Exemple : https://krazy-karl.github.io/Gasy-mal/
-    const REDIRECT_URI = window.location.origin + window.location.pathname.replace(/index\.html$/, "");
-
-    const config = {
-      auth: {
-        clientId: CLIENT_ID,
-        // "common" = comptes Microsoft personnels ET comptes pro/école
-        authority: "https://login.microsoftonline.com/common",
-        redirectUri: REDIRECT_URI
-      },
-      cache: { cacheLocation: "localStorage" }
-    };
-
-    const appMsal = new msal.PublicClientApplication(config);
-    const SCOPES = ["User.Read"]; // pour l'étape 1, on demande seulement à lire le profil
-
-    const boutonConnexion = document.getElementById("connexion");
-    const boutonDeconnexion = document.getElementById("deconnexion");
+    const bouton = document.getElementById("tester");
     const message = document.getElementById("message");
 
-    function afficherErreur(texte) {
-      message.className = "erreur";
+    function afficher(texte, classe) {
+      message.className = classe || "";
       message.textContent = texte;
     }
 
-    function afficherUtilisateur(compte) {
-      message.className = "";
-      message.textContent = "Connecté : " + (compte.name || compte.username);
-      boutonConnexion.hidden = true;
-      boutonDeconnexion.hidden = false;
-    }
-
-    function afficherDeconnecte() {
-      message.className = "";
-      message.textContent = "Vous n'êtes pas connecté.";
-      boutonConnexion.hidden = false;
-      boutonDeconnexion.hidden = true;
-    }
-
-    async function demarrer() {
-      if (CLIENT_ID.startsWith("COLLEZ")) {
-        afficherErreur("Le CLIENT_ID n'est pas renseigné. Ouvrez index.html et remplacez-le en haut du script.");
-        boutonConnexion.disabled = true;
+    bouton.addEventListener("click", async () => {
+      if (APPS_SCRIPT_URL.startsWith("COLLEZ")) {
+        afficher("L'adresse du script n'est pas renseignée. Remplacez APPS_SCRIPT_URL en haut de index.html.", "erreur");
         return;
       }
+      bouton.disabled = true;
+      afficher("Connexion en cours…");
       try {
-        await appMsal.initialize();
-        const comptes = appMsal.getAllAccounts();
-        if (comptes.length > 0) afficherUtilisateur(comptes[0]);
-        else afficherDeconnecte();
+        const reponse = await fetch(APPS_SCRIPT_URL);
+        if (!reponse.ok) throw new Error("code " + reponse.status);
+        const donnees = await reponse.json();
+        afficher(donnees.message, "ok");
       } catch (e) {
-        afficherErreur("Impossible de démarrer la connexion Microsoft : " + e.message);
+        afficher("Impossible de joindre le script. Vérifiez l'adresse et que le déploiement est réglé sur « Tout le monde ». (" + e.message + ")", "erreur");
       }
-    }
-
-    boutonConnexion.addEventListener("click", async () => {
-      try {
-        const resultat = await appMsal.loginPopup({ scopes: SCOPES });
-        afficherUtilisateur(resultat.account);
-      } catch (e) {
-        if (e.errorCode === "user_cancelled") afficherErreur("Connexion annulée.");
-        else if (e.errorCode === "popup_window_error" || e.errorCode === "empty_window_error")
-          afficherErreur("La fenêtre de connexion a été bloquée. Autorisez les fenêtres pop-up pour ce site, puis réessayez.");
-        else afficherErreur("Échec de la connexion : " + (e.errorMessage || e.message));
-      }
+      bouton.disabled = false;
     });
-
-    boutonDeconnexion.addEventListener("click", async () => {
-      const compte = appMsal.getAllAccounts()[0];
-      await appMsal.logoutPopup({ account: compte, postLogoutRedirectUri: REDIRECT_URI });
-      afficherDeconnecte();
-    });
-
-    demarrer();
   </script>
 </body>
 </html>
