@@ -205,10 +205,7 @@
 
       <button id="boutonPoints" class="gros secondaire"><span class="material-symbols-rounded">add_circle</span><span id="boutonPointsTexte">Attribuer des points</span></button>
       <section id="panneauPoints" hidden>
-        <label class="champ" style="margin-top:0">Partie (facultatif)
-          <input id="pPartie" list="listeParties" maxlength="50" autocomplete="off" placeholder="ex. Belote">
-        </label>
-        <p class="aide">Touchez un nom pour lui donner 1 point.</p>
+        <p class="aide" style="margin-top:0">Touchez un nom pour lui donner 1 point.</p>
         <ul id="listePoints" class="carte-liste"></ul>
       </section>
 
@@ -246,7 +243,6 @@
         <strong id="nomMois"></strong>
         <button id="moisSuiv" class="icone" aria-label="Mois suivant"><span class="material-symbols-rounded">chevron_right</span></button>
       </div>
-      <div class="rang-puces" id="puces" role="group" aria-label="Filtrer par partie"></div>
       <h2>Classement</h2>
       <ol id="classement" class="carte-liste"></ol>
       <h2>Détail du mois</h2>
@@ -262,7 +258,6 @@
   </main>
 
   <p id="statut" role="status" hidden></p>
-  <datalist id="listeParties"></datalist>
 
   <!-- Feuille du bas : nouveau joueur / ajout de points -->
   <dialog id="feuille">
@@ -272,9 +267,6 @@
         <input id="fNom" maxlength="50" autocomplete="off">
       </label>
       <div id="blocPoints">
-        <label class="champ">Partie (facultatif)
-          <input id="fPartie" list="listeParties" maxlength="50" autocomplete="off" placeholder="ex. Belote">
-        </label>
         <label class="champ">Points (négatif pour en retirer)
           <input id="fPoints" type="number" inputmode="numeric" step="1" placeholder="0">
         </label>
@@ -301,10 +293,8 @@
     // =====================================================================
 
     const $ = id => document.getElementById(id);
-    const TOUTES = "__toutes__";
     let lignes = [];
     let saisonChoisie = null;
-    let partieChoisie = TOUTES;
     let derniereMaj = 0;
     let seqEnvoi = 0;
 
@@ -441,9 +431,9 @@
     }
 
     // ---------- Calculs ----------
-    function calculer(saison, partie) {
+    function calculer(saison) {
       const totaux = {};
-      lignes.filter(l => partie === TOUTES || l.partie === partie).forEach(l => {
+      lignes.forEach(l => {
         const t = totaux[l.joueur] || (totaux[l.joueur] = { mois: 0, cumul: 0 });
         t.cumul += l.points;
         if (l.saison === saison) t.mois += l.points;
@@ -457,36 +447,22 @@
     function afficher() {
       const saisons = saisonsDispo();
       if (!saisonChoisie || !saisons.includes(saisonChoisie)) saisonChoisie = moisCourant();
-      const parties = [...new Set(lignes.map(l => l.partie).filter(Boolean))].sort();
-      if (partieChoisie !== TOUTES && !parties.includes(partieChoisie)) partieChoisie = TOUTES;
-
-      const top = calculer(moisCourant(), TOUTES)[0];
+      const top = calculer(moisCourant())[0];
       $("resume").textContent = top && top.mois > 0 ? top.joueur + " est en tête ce mois-ci (" + top.mois + " pts)" : "Classement par mois";
 
-      const dl = $("listeParties"); dl.textContent = "";
-      parties.forEach(p => { const o = el("option"); o.value = p; dl.appendChild(o); });
-
-      afficherPoints(saisons, parties);
+      afficherPoints(saisons);
       afficherJoueurs();
       afficherPanneauPoints();
     }
 
-    function afficherPoints(saisons, parties) {
+    function afficherPoints(saisons) {
       const i = saisons.indexOf(saisonChoisie);
       $("nomMois").textContent = nomMois(saisonChoisie);
       $("moisPrec").disabled = i <= 0;
       $("moisSuiv").disabled = i >= saisons.length - 1;
 
-      const puces = $("puces"); puces.textContent = "";
-      [TOUTES].concat(parties).forEach(p => {
-        const b = el("button", "puce", p === TOUTES ? "Toutes les parties" : p);
-        b.setAttribute("aria-pressed", String(p === partieChoisie));
-        b.addEventListener("click", () => { partieChoisie = p; afficher(); });
-        puces.appendChild(b);
-      });
-
       const liste = $("classement"); liste.textContent = "";
-      const classement = calculer(saisonChoisie, partieChoisie);
+      const classement = calculer(saisonChoisie);
       if (!classement.length) liste.appendChild(el("li", "vide", "Aucun joueur pour le moment."));
       classement.forEach((c, k) => {
         const li = el("li");
@@ -502,19 +478,19 @@
       });
 
       const histo = $("historique"); histo.textContent = "";
-      const duMois = lignes.filter(l => l.saison === saisonChoisie && l.points !== 0 && (partieChoisie === TOUTES || l.partie === partieChoisie)).reverse();
+      const duMois = lignes.filter(l => l.saison === saisonChoisie && l.points !== 0).reverse();
       if (!duMois.length) histo.appendChild(el("li", "vide", "Rien ce mois-ci."));
       duMois.forEach(l => {
         const li = el("li");
         const nom = el("span", "nom", l.joueur);
-        nom.appendChild(el("small", "", (l.partie || "Sans partie") + " · " + dateCourte(l.date)));
+        nom.appendChild(el("small", "", dateCourte(l.date)));
         li.appendChild(nom);
         li.appendChild(el("span", "score " + (l.points >= 0 ? "positif" : "negatif"), signe(l.points)));
         const b = el("button", "suppr");
         b.appendChild(icone("delete"));
         b.setAttribute("aria-label", "Supprimer cette ligne");
         b.addEventListener("click", () => {
-          if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + signe(l.points) + " (" + (l.partie || "sans partie") + ")"))
+          if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + signe(l.points)))
             envoyer({ action: "supprimer", id: l.id }, "Ligne supprimée.");
         });
         li.appendChild(b);
@@ -526,7 +502,7 @@
 
     function afficherJoueurs() {
       const liste = $("listeJoueursVue"); liste.textContent = "";
-      const mois = Object.fromEntries(calculer(moisCourant(), TOUTES).map(c => [c.joueur, c.mois]));
+      const mois = Object.fromEntries(calculer(moisCourant()).map(c => [c.joueur, c.mois]));
       const noms = nomsJoueurs();
       if (!noms.length) liste.appendChild(el("li", "vide", "Aucun joueur pour le moment. Ajoutez-en un !"));
       noms.forEach(nom => {
@@ -552,7 +528,6 @@
       $("blocPoints").hidden = nouveau;
       $("fNom").value = joueur || "";
       $("fNom").required = nouveau;
-      $("fPartie").value = lireLocal("dernierePartie", "");
       $("fPoints").value = "";
       $("feuille").showModal();
       (nouveau ? $("fNom") : $("fPoints")).focus();
@@ -575,10 +550,8 @@
       } else {
         const points = Number($("fPoints").value);
         if (!points || !Number.isInteger(points)) { statut("Entrez un nombre de points entier, différent de zéro.", "erreur", 3000); return; }
-        const partie = $("fPartie").value.trim();
-        corps = { action: "ajouter", partie, joueur: nom, points };
+        corps = { action: "ajouter", joueur: nom, points };
         message = signe(points) + " pour " + nom;
-        ecrireLocal("dernierePartie", partie);
       }
       $("fValider").disabled = true;
       const reussi = await envoyer(corps, message);
@@ -594,9 +567,8 @@
       const ouvert = $("panneauPoints").hidden;
       $("panneauPoints").hidden = !ouvert;
       $("boutonPointsTexte").textContent = ouvert ? "Masquer les points" : "Attribuer des points";
-      if (ouvert) { $("pPartie").value = lireLocal("dernierePartie", ""); afficherPanneauPoints(); }
+      if (ouvert) afficherPanneauPoints();
     });
-    $("pPartie").addEventListener("change", () => ecrireLocal("dernierePartie", $("pPartie").value.trim()));
 
     function afficherPanneauPoints() {
       const liste = $("listePoints"); liste.textContent = "";
@@ -628,9 +600,7 @@
     async function pointRapide(joueur, delta) {
       pointsPartie[joueur] = (pointsPartie[joueur] || 0) + delta;
       afficherPanneauPoints();
-      const partie = $("pPartie").value.trim();
-      ecrireLocal("dernierePartie", partie);
-      const ok = await envoyer({ action: "ajouter", partie, joueur, points: delta }, null);
+      const ok = await envoyer({ action: "ajouter", joueur, points: delta }, null);
       if (!ok) { pointsPartie[joueur] -= delta; afficherPanneauPoints(); }
     }
 
