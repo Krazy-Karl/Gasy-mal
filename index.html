@@ -5,18 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Gasy-mal – Comptage de points</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 3rem auto; padding: 0 1rem; text-align: center; }
-    button { font-size: 1rem; padding: .7rem 1.2rem; border: 0; border-radius: 6px; background: #1a73e8; color: #fff; cursor: pointer; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 1.5rem auto; padding: 0 1rem; color: #202124; }
+    h1 { text-align: center; }
+    h2 { margin-top: 2rem; font-size: 1.15rem; }
+    .barre { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+    select, input, button { font-size: 1rem; padding: .5rem .7rem; border: 1px solid #bbb; border-radius: 6px; }
+    button { background: #1a73e8; color: #fff; border: 0; cursor: pointer; }
     button:disabled { background: #999; cursor: default; }
-    #message { margin-top: 1.5rem; }
+    button.secondaire { background: #eee; color: #333; border: 1px solid #bbb; }
+    button.danger { background: none; color: #b00020; border: 0; padding: .2rem .5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: .5rem; }
+    th, td { text-align: left; padding: .45rem .4rem; border-bottom: 1px solid #e3e3e3; }
+    td.nombre, th.nombre { text-align: right; }
+    form { display: grid; grid-template-columns: 1fr 1fr 7rem auto; gap: .5rem; }
+    form input { width: 100%; }
+    @media (max-width: 560px) { form { grid-template-columns: 1fr; } }
+    #statut { min-height: 1.5rem; margin: 1rem 0; text-align: center; }
     .erreur { color: #b00020; }
     .ok { color: #137333; }
+    .vide { color: #777; text-align: center; padding: 1rem 0; }
+    .petit { color: #777; font-size: .85rem; }
   </style>
 </head>
 <body>
   <h1>Comptage de points</h1>
-  <button id="tester">Tester la connexion</button>
-  <p id="message"></p>
+  <p id="statut"></p>
+
+  <div class="barre">
+    <label>Saison (mois) :
+      <select id="choixSaison"></select>
+    </label>
+    <label>Partie :
+      <select id="choixPartie"></select>
+    </label>
+    <button id="actualiser" class="secondaire">Actualiser</button>
+  </div>
+
+  <h2>Classement</h2>
+  <table>
+    <thead><tr><th>#</th><th>Joueur</th><th class="nombre">Points du mois</th><th class="nombre">Total cumulé</th></tr></thead>
+    <tbody id="classement"></tbody>
+  </table>
+
+  <h2>Ajouter des points</h2>
+  <form id="formulaire">
+    <input id="partie" list="listeParties" placeholder="Partie" maxlength="50" required>
+    <input id="joueur" list="listeJoueurs" placeholder="Joueur" maxlength="50" required>
+    <input id="points" type="number" step="1" placeholder="Points" required>
+    <button id="ajouter" type="submit">Ajouter</button>
+  </form>
+  <datalist id="listeParties"></datalist>
+  <datalist id="listeJoueurs"></datalist>
+  <p class="petit">Astuce : mettez un nombre négatif pour retirer des points.</p>
+
+  <h2>Historique du mois</h2>
+  <table>
+    <thead><tr><th>Date</th><th>Partie</th><th>Joueur</th><th class="nombre">Points</th><th></th></tr></thead>
+    <tbody id="historique"></tbody>
+  </table>
 
   <script>
     // =====================================================================
@@ -26,31 +73,190 @@
     const APPS_SCRIPT_URL = "COLLEZ-L-ADRESSE-DU-SCRIPT-ICI";
     // =====================================================================
 
-    const bouton = document.getElementById("tester");
-    const message = document.getElementById("message");
+    const TOUTES = "__toutes__";
+    let lignes = [];
+    const $ = id => document.getElementById(id);
 
-    function afficher(texte, classe) {
-      message.className = classe || "";
-      message.textContent = texte;
+    function statut(texte, classe) {
+      $("statut").className = classe || "";
+      $("statut").textContent = texte;
     }
 
-    bouton.addEventListener("click", async () => {
+    function moisCourant() {
+      const d = new Date();
+      return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    }
+
+    function nomMois(saison) {
+      const [a, m] = saison.split("-");
+      const noms = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+      return (noms[Number(m) - 1] || m) + " " + a;
+    }
+
+    // ---------- Communication avec le script Google ----------
+    async function appeler(options) {
       if (APPS_SCRIPT_URL.startsWith("COLLEZ")) {
-        afficher("L'adresse du script n'est pas renseignée. Remplacez APPS_SCRIPT_URL en haut de index.html.", "erreur");
-        return;
+        throw new Error("L'adresse du script n'est pas renseignée. Remplacez APPS_SCRIPT_URL en haut de index.html.");
       }
-      bouton.disabled = true;
-      afficher("Connexion en cours…");
+      let reponse;
       try {
-        const reponse = await fetch(APPS_SCRIPT_URL);
-        if (!reponse.ok) throw new Error("code " + reponse.status);
-        const donnees = await reponse.json();
-        afficher(donnees.message, "ok");
+        reponse = await fetch(APPS_SCRIPT_URL, options);
       } catch (e) {
-        afficher("Impossible de joindre le script. Vérifiez l'adresse et que le déploiement est réglé sur « Tout le monde ». (" + e.message + ")", "erreur");
+        throw new Error("Impossible de joindre le script. Vérifiez votre connexion, l'adresse du script et que le déploiement est réglé sur « Tout le monde ».");
       }
-      bouton.disabled = false;
+      if (!reponse.ok) throw new Error("Le script a répondu avec une erreur (code " + reponse.status + ").");
+      let donnees;
+      try {
+        donnees = await reponse.json();
+      } catch (e) {
+        throw new Error("Réponse illisible. Vérifiez que l'adresse se termine par /exec et que le déploiement est réglé sur « Tout le monde ».");
+      }
+      if (!donnees.ok) throw new Error(donnees.erreur || "Erreur inconnue du script.");
+      return donnees;
+    }
+
+    async function charger() {
+      statut("Chargement…");
+      try {
+        const donnees = await appeler();
+        lignes = donnees.lignes;
+        afficher();
+        statut("");
+      } catch (e) {
+        statut(e.message, "erreur");
+      }
+    }
+
+    async function envoyer(corps, messageOk) {
+      statut("Enregistrement…");
+      try {
+        // Pas d'en-tête Content-Type : évite un blocage de sécurité du navigateur (CORS)
+        const donnees = await appeler({ method: "POST", body: JSON.stringify(corps) });
+        lignes = donnees.lignes;
+        afficher();
+        statut(messageOk, "ok");
+        return true;
+      } catch (e) {
+        statut(e.message, "erreur");
+        return false;
+      }
+    }
+
+    // ---------- Affichage ----------
+    function remplirChoix(select, valeurs, etiquette, valeurChoisie) {
+      select.textContent = "";
+      valeurs.forEach(v => {
+        const o = document.createElement("option");
+        o.value = v;
+        o.textContent = etiquette(v);
+        select.appendChild(o);
+      });
+      select.value = valeurs.includes(valeurChoisie) ? valeurChoisie : valeurs[0];
+    }
+
+    function cellule(ligne, texte, classe) {
+      const td = document.createElement("td");
+      td.textContent = texte;
+      if (classe) td.className = classe;
+      ligne.appendChild(td);
+      return td;
+    }
+
+    function afficher() {
+      // Listes de choix
+      const saisons = [...new Set(lignes.map(l => l.saison).concat(moisCourant()))].sort().reverse();
+      remplirChoix($("choixSaison"), saisons, nomMois, $("choixSaison").value || moisCourant());
+
+      const parties = [...new Set(lignes.map(l => l.partie))].sort();
+      remplirChoix($("choixPartie"), [TOUTES].concat(parties), p => p === TOUTES ? "Toutes les parties" : p, $("choixPartie").value || TOUTES);
+
+      $("listeParties").textContent = "";
+      parties.forEach(p => { const o = document.createElement("option"); o.value = p; $("listeParties").appendChild(o); });
+      $("listeJoueurs").textContent = "";
+      [...new Set(lignes.map(l => l.joueur))].sort().forEach(j => { const o = document.createElement("option"); o.value = j; $("listeJoueurs").appendChild(o); });
+
+      const saison = $("choixSaison").value;
+      const partie = $("choixPartie").value;
+      const filtrees = lignes.filter(l => partie === TOUTES || l.partie === partie);
+
+      // Classement : points du mois + total cumulé
+      const totaux = {};
+      filtrees.forEach(l => {
+        const t = totaux[l.joueur] || (totaux[l.joueur] = { mois: 0, cumul: 0 });
+        t.cumul += l.points;
+        if (l.saison === saison) t.mois += l.points;
+      });
+      const classement = Object.entries(totaux).sort((a, b) => b[1].mois - a[1].mois || b[1].cumul - a[1].cumul || a[0].localeCompare(b[0]));
+      const corps = $("classement");
+      corps.textContent = "";
+      if (!classement.length) {
+        const tr = document.createElement("tr");
+        const td = cellule(tr, "Aucun point pour le moment.", "vide");
+        td.colSpan = 4;
+        corps.appendChild(tr);
+      }
+      classement.forEach(([joueur, t], i) => {
+        const tr = document.createElement("tr");
+        cellule(tr, i + 1);
+        cellule(tr, joueur);
+        cellule(tr, t.mois, "nombre");
+        cellule(tr, t.cumul, "nombre");
+        corps.appendChild(tr);
+      });
+
+      // Historique du mois (le plus récent en premier)
+      const histo = $("historique");
+      histo.textContent = "";
+      const duMois = filtrees.filter(l => l.saison === saison).reverse();
+      if (!duMois.length) {
+        const tr = document.createElement("tr");
+        const td = cellule(tr, "Rien ce mois-ci.", "vide");
+        td.colSpan = 5;
+        histo.appendChild(tr);
+      }
+      duMois.forEach(l => {
+        const tr = document.createElement("tr");
+        cellule(tr, l.date);
+        cellule(tr, l.partie);
+        cellule(tr, l.joueur);
+        cellule(tr, l.points, "nombre");
+        const td = document.createElement("td");
+        const b = document.createElement("button");
+        b.className = "danger";
+        b.textContent = "Supprimer";
+        b.addEventListener("click", () => {
+          if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + l.points + " (" + l.partie + ")")) {
+            envoyer({ action: "supprimer", id: l.id }, "Ligne supprimée.");
+          }
+        });
+        td.appendChild(b);
+        tr.appendChild(td);
+        histo.appendChild(tr);
+      });
+    }
+
+    // ---------- Actions ----------
+    $("formulaire").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const points = Number($("points").value);
+      if (!points) { statut("Entrez un nombre de points différent de zéro.", "erreur"); return; }
+      $("ajouter").disabled = true;
+      const reussi = await envoyer({
+        action: "ajouter",
+        partie: $("partie").value,
+        joueur: $("joueur").value,
+        points: points
+      }, "Points ajoutés.");
+      $("ajouter").disabled = false;
+      if (reussi) { $("points").value = ""; $("points").focus(); }
     });
+
+    $("choixSaison").addEventListener("change", afficher);
+    $("choixPartie").addEventListener("change", afficher);
+    $("actualiser").addEventListener("click", charger);
+
+    charger();
+    setInterval(charger, 60000); // mise à jour automatique toutes les minutes
   </script>
 </body>
 </html>
