@@ -5,38 +5,65 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#4f46e5">
   <title>Gasy-mal – Comptage de points</title>
+  <!-- Applique le thème choisi tout de suite, pour éviter un flash blanc -->
+  <script>
+    try { const t = localStorage.getItem("theme"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
+  </script>
+  <!-- Icônes Google (Material Symbols) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=block">
   <style>
     :root {
+      color-scheme: light;
       --fond: #f5f6fa; --carte: #ffffff; --texte: #1c1e26; --discret: #6b7080;
       --bord: #e4e6ee; --accent: #4f46e5; --accent-texte: #ffffff;
       --ok: #137333; --erreur: #c5221f; --rayon: 16px;
+      --or: #d4a017; --argent: #8f98a8; --bronze: #b87333;
+    }
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --fond: #12131a; --carte: #1d1f29; --texte: #eceef5; --discret: #9aa0b4;
+      --bord: #2e3140; --accent: #7c75ff; --accent-texte: #101018; --ok: #3aa65e; --erreur: #ff8b85;
+      --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a;
     }
     @media (prefers-color-scheme: dark) {
-      :root { --fond: #12131a; --carte: #1d1f29; --texte: #eceef5; --discret: #9aa0b4;
-              --bord: #2e3140; --accent: #7c75ff; --accent-texte: #101018; --ok: #6dd58c; --erreur: #ff8b85; }
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --fond: #12131a; --carte: #1d1f29; --texte: #eceef5; --discret: #9aa0b4;
+        --bord: #2e3140; --accent: #7c75ff; --accent-texte: #101018; --ok: #3aa65e; --erreur: #ff8b85;
+        --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a;
+      }
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { margin: 0; background: var(--fond); color: var(--texte);
            font: 16px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
     [hidden] { display: none !important; }
 
+    /* ----- Icônes ----- */
+    .material-symbols-rounded { font-size: 24px; line-height: 1; vertical-align: middle; user-select: none; visibility: hidden; }
+    html.icones-pretes .material-symbols-rounded { visibility: visible; }
+
     /* ----- En-tête ----- */
-    #entete { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: .5rem;
+    #entete { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem;
               padding: calc(.6rem + env(safe-area-inset-top)) 1rem .6rem; background: var(--fond); }
-    #entete h1 { flex: 1; margin: 0; font-size: 1.25rem; text-align: center; }
-    .icone { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--carte);
-             color: var(--texte); font-size: 1.3rem; cursor: pointer; box-shadow: 0 1px 3px #0002; }
-    .icone[hidden] { display: block !important; visibility: hidden; }
+    #entete h1 { margin: 0; font-size: 1.25rem; text-align: center; }
+    .actions-entete { display: flex; gap: .5rem; }
+    .icone { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0;
+             border: 1px solid var(--bord); border-radius: 50%; background: var(--carte); color: var(--texte); cursor: pointer; }
+    .icone[hidden] { display: inline-flex !important; visibility: hidden; }
+    .icone:disabled { opacity: .35; }
 
     main { max-width: 560px; margin: 0 auto; padding: .5rem 1rem calc(6rem + env(safe-area-inset-bottom)); }
-    h2 { font-size: 1rem; color: var(--discret); text-transform: uppercase; letter-spacing: .04em; margin: 1.5rem 0 .5rem; }
+    h2 { font-size: .9rem; color: var(--discret); text-transform: uppercase; letter-spacing: .04em; margin: 1.5rem 0 .5rem; }
 
     /* ----- Boutons ----- */
     button { font: inherit; }
-    .gros { display: block; width: 100%; min-height: 56px; border: 0; border-radius: var(--rayon);
-            background: var(--accent); color: var(--accent-texte); font-weight: 600; font-size: 1.1rem; cursor: pointer; }
+    .gros { display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; min-height: 56px;
+            border: 0; border-radius: var(--rayon); background: var(--accent); color: var(--accent-texte);
+            font-weight: 600; font-size: 1.05rem; cursor: pointer; }
     .gros.secondaire { background: var(--carte); color: var(--texte); border: 1px solid var(--bord); }
-    .gros:active, .menu button:active, .ligne-joueur:active { transform: scale(.98); }
+    .gros:active, .menu button:active, .ligne-joueur:active, .ligne-point:active { transform: scale(.98); }
     .puce { min-height: 44px; padding: 0 1rem; border: 1px solid var(--bord); border-radius: 999px;
             background: var(--carte); color: var(--texte); cursor: pointer; white-space: nowrap; }
     .puce[aria-pressed="true"] { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); }
@@ -44,25 +71,48 @@
 
     /* ----- Accueil ----- */
     .menu { display: grid; gap: .9rem; margin-top: 1rem; }
-    .menu button { display: flex; align-items: center; gap: 1rem; width: 100%; padding: 1.2rem; text-align: left;
+    .menu button { display: flex; align-items: center; gap: 1rem; width: 100%; padding: 1.1rem; text-align: left;
                    border: 1px solid var(--bord); border-radius: var(--rayon); background: var(--carte);
-                   color: var(--texte); cursor: pointer; box-shadow: 0 1px 3px #0001; }
-    .menu .emoji { font-size: 2rem; }
+                   color: var(--texte); cursor: pointer; }
+    .menu .pastille { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 52px; height: 52px;
+                      border-radius: 14px; background: var(--fond); color: var(--accent); }
+    .menu .pastille .material-symbols-rounded { font-size: 30px; }
     .menu strong { display: block; font-size: 1.15rem; }
-    .menu span.sous { color: var(--discret); font-size: .9rem; }
+    .menu .sous { color: var(--discret); font-size: .9rem; }
     .menu .principal { background: var(--accent); color: var(--accent-texte); border-color: var(--accent); }
+    .menu .principal .pastille { background: #ffffff30; color: var(--accent-texte); }
     .menu .principal .sous { color: inherit; opacity: .85; }
 
     /* ----- Chrono ----- */
-    #affichageChrono { font-size: clamp(4.5rem, 24vw, 8rem); font-weight: 700; text-align: center;
-                       font-variant-numeric: tabular-nums; margin: 2.5rem 0 2rem; }
+    .etiquette { text-align: center; color: var(--discret); margin-top: 1.5rem; font-size: 1.1rem; }
+    #affichageChrono { font-size: clamp(4.5rem, 24vw, 8rem); font-weight: 700; text-align: center; line-height: 1.1;
+                       font-variant-numeric: tabular-nums; margin: .4rem 0 .6rem; }
     #affichageChrono.fini { color: var(--erreur); animation: clignote 1s steps(2) infinite; }
+    #affichageChrono.depart { color: var(--accent); }
     @keyframes clignote { 50% { opacity: .25; } }
+    #infoTotal { text-align: center; color: var(--discret); margin-bottom: .6rem; }
+    #infoTotal b { color: var(--texte); font-variant-numeric: tabular-nums; }
+    .barre-chrono { position: relative; height: 10px; border-radius: 999px; background: var(--bord); margin: .4rem 0 1.4rem; overflow: hidden; }
+    #barreRemplie { height: 100%; width: 0; background: var(--accent); }
+    .repere { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--fond); }
     .duo { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
-    details { margin-top: 1.5rem; background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon); padding: .8rem 1rem; }
-    summary { cursor: pointer; min-height: 32px; }
+    .gros + .gros { margin-top: .8rem; }
+    .duo + .gros { margin-top: .8rem; }
+    details { margin-top: 1.2rem; background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon); padding: .8rem 1rem; }
+    summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: .5rem; }
     .reglage { display: flex; gap: .8rem; margin: .8rem 0; }
     .reglage label { flex: 1; font-size: .85rem; color: var(--discret); }
+    .option { display: flex; align-items: center; gap: .7rem; min-height: 44px; margin-top: .6rem; }
+    .option input[type=checkbox] { width: 24px; height: 24px; min-height: 0; accent-color: var(--accent); }
+    .aide { color: var(--discret); font-size: .85rem; margin: .3rem 0 0; }
+
+    /* ----- Points en pleine partie ----- */
+    #panneauPoints { margin-top: .8rem; background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon); padding: .8rem; }
+    #panneauPoints .carte-liste { max-height: 42vh; overflow-y: auto; margin-top: .5rem; }
+    .ligne-point { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 56px; padding: 0 0 0 1rem; border: 0;
+                   background: none; color: inherit; text-align: left; cursor: pointer; }
+    .badge { min-width: 3rem; text-align: center; padding: .15rem .6rem; border-radius: 999px; background: var(--accent); color: var(--accent-texte); font-weight: 700; }
+    .badge.zero { background: var(--bord); color: var(--discret); }
 
     /* ----- Champs ----- */
     input { width: 100%; min-height: 48px; padding: .5rem .8rem; border: 1px solid var(--bord); border-radius: 12px;
@@ -73,27 +123,29 @@
     /* ----- Mois ----- */
     .mois { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .mois strong { font-size: 1.2rem; text-transform: capitalize; }
-    .mois button:disabled { opacity: .35; }
 
     /* ----- Classement / listes ----- */
     ol, ul { list-style: none; padding: 0; margin: 0; }
     .carte-liste { background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon); overflow: hidden; }
-    .carte-liste li { display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem; border-bottom: 1px solid var(--bord); }
+    .carte-liste li { display: flex; align-items: center; gap: .8rem; padding: .8rem 1rem; border-bottom: 1px solid var(--bord); }
+    .carte-liste li.sans-marge { padding: 0; }
     .carte-liste li:last-child { border-bottom: 0; }
-    .rang { width: 2rem; text-align: center; font-size: 1.3rem; color: var(--discret); }
+    .rang { width: 2rem; text-align: center; font-size: 1.2rem; color: var(--discret); }
+    .rang .material-symbols-rounded { font-size: 28px; }
+    .rang.r1 { color: var(--or); } .rang.r2 { color: var(--argent); } .rang.r3 { color: var(--bronze); }
     .nom { flex: 1; min-width: 0; overflow-wrap: anywhere; }
     .nom small { display: block; color: var(--discret); }
     .score { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
     .score small { display: block; font-size: .75rem; font-weight: 400; color: var(--discret); }
     .vide { color: var(--discret); text-align: center; padding: 1.5rem 1rem !important; display: block !important; }
     .ligne-joueur { width: 100%; border: 0; background: none; color: inherit; text-align: left; cursor: pointer;
-                    display: flex; align-items: center; gap: .8rem; min-height: 44px; padding: 0; }
-    .plus { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
-            border-radius: 50%; background: var(--accent); color: var(--accent-texte); font-size: 1.5rem; }
+                    display: flex; align-items: center; gap: .8rem; min-height: 64px; padding: .5rem 1rem; }
+    .plus { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px;
+            border-radius: 50%; background: var(--accent); color: var(--accent-texte); }
     .positif { color: var(--ok); } .negatif { color: var(--erreur); }
-    .suppr { border: 0; background: none; color: var(--erreur); font-size: 1.2rem; min-width: 44px; min-height: 44px; cursor: pointer; }
+    .suppr { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--discret); min-width: 44px; min-height: 44px; cursor: pointer; }
 
-    /* ----- Feuille d'ajout de points ----- */
+    /* ----- Feuille du bas ----- */
     dialog { width: 100%; max-width: 560px; margin: auto auto 0; border: 0; border-radius: 24px 24px 0 0;
              padding: 1.2rem 1.2rem calc(1.2rem + env(safe-area-inset-bottom)); background: var(--carte); color: var(--texte); }
     dialog::backdrop { background: #0008; }
@@ -112,9 +164,12 @@
 </head>
 <body>
   <header id="entete">
-    <button id="retour" class="icone" aria-label="Retour" hidden>←</button>
+    <button id="retour" class="icone" aria-label="Retour" hidden><span class="material-symbols-rounded">arrow_back</span></button>
     <h1 id="titre">Gasy-mal</h1>
-    <button id="actualiser" class="icone" aria-label="Actualiser les points">⟳</button>
+    <div class="actions-entete">
+      <button id="actualiser" class="icone" aria-label="Actualiser les points"><span class="material-symbols-rounded">refresh</span></button>
+      <button id="themeBtn" class="icone" aria-label="Changer le thème clair ou sombre"><span class="material-symbols-rounded" id="themeIcone">dark_mode</span></button>
+    </div>
   </header>
 
   <main>
@@ -122,29 +177,43 @@
     <section id="vue-accueil" class="vue">
       <div class="menu">
         <button class="principal" data-vue="partie">
-          <span class="emoji">▶️</span>
-          <span><strong>Lancer une partie</strong><span class="sous">Affiche seulement le chronomètre</span></span>
+          <span class="pastille"><span class="material-symbols-rounded">play_arrow</span></span>
+          <span><strong>Lancer une partie</strong><span class="sous">Chronomètre et points en direct</span></span>
         </button>
         <button data-vue="points">
-          <span class="emoji">🏆</span>
+          <span class="pastille"><span class="material-symbols-rounded">leaderboard</span></span>
           <span><strong>Consulter les points</strong><span class="sous" id="resume">Classement par mois</span></span>
         </button>
         <button data-vue="joueurs">
-          <span class="emoji">👥</span>
+          <span class="pastille"><span class="material-symbols-rounded">group</span></span>
           <span><strong>Joueurs</strong><span class="sous">Voir les joueurs et ajouter des points</span></span>
         </button>
       </div>
     </section>
 
-    <!-- PARTIE : chronomètre seul -->
+    <!-- PARTIE : chronomètre + points en direct -->
     <section id="vue-partie" class="vue" hidden>
+      <div id="etiquetteChrono" class="etiquette">Chronomètre</div>
       <div id="affichageChrono">05:00</div>
+      <div id="infoTotal" hidden>Temps total restant : <b id="totalChrono">10:00</b></div>
+      <div id="barre" class="barre-chrono" hidden><div id="barreRemplie"></div></div>
+
       <div class="duo">
-        <button id="chronoDemarrer" class="gros">Démarrer</button>
-        <button id="chronoReset" class="gros secondaire">Remettre à zéro</button>
+        <button id="chronoDemarrer" class="gros"></button>
+        <button id="chronoReset" class="gros secondaire"><span class="material-symbols-rounded">restart_alt</span>Remise à zéro</button>
       </div>
+
+      <button id="boutonPoints" class="gros secondaire"><span class="material-symbols-rounded">add_circle</span><span id="boutonPointsTexte">Attribuer des points</span></button>
+      <section id="panneauPoints" hidden>
+        <label class="champ" style="margin-top:0">Partie (facultatif)
+          <input id="pPartie" list="listeParties" maxlength="50" autocomplete="off" placeholder="ex. Belote">
+        </label>
+        <p class="aide">Touchez un nom pour lui donner 1 point.</p>
+        <ul id="listePoints" class="carte-liste"></ul>
+      </section>
+
       <details>
-        <summary>⚙️ Régler la durée</summary>
+        <summary><span class="material-symbols-rounded">settings</span>Régler le chronomètre</summary>
         <div class="reglage">
           <label>Minutes <input id="chronoMin" type="number" inputmode="numeric" min="0" max="999" value="5"></label>
           <label>Secondes <input id="chronoSec" type="number" inputmode="numeric" min="0" max="59" value="0"></label>
@@ -157,15 +226,25 @@
           <button class="puce" data-preset="600">10 min</button>
           <button class="puce" data-preset="900">15 min</button>
         </div>
+        <label class="option"><input id="sousOn" type="checkbox"> Diviser en manches (sous-chronomètre)</label>
+        <div id="blocManches" hidden>
+          <label class="champ">Nombre de manches
+            <input id="chronoManches" type="number" inputmode="numeric" min="2" max="60" value="2">
+          </label>
+          <p class="aide" id="aideManches"></p>
+        </div>
+        <label class="champ">Compte à rebours avant le départ (secondes, 0 = aucun)
+          <input id="chronoDelai" type="number" inputmode="numeric" min="0" max="10" value="3">
+        </label>
       </details>
     </section>
 
     <!-- POINTS : consultation -->
     <section id="vue-points" class="vue" hidden>
       <div class="mois">
-        <button id="moisPrec" class="icone" aria-label="Mois précédent">‹</button>
+        <button id="moisPrec" class="icone" aria-label="Mois précédent"><span class="material-symbols-rounded">chevron_left</span></button>
         <strong id="nomMois"></strong>
-        <button id="moisSuiv" class="icone" aria-label="Mois suivant">›</button>
+        <button id="moisSuiv" class="icone" aria-label="Mois suivant"><span class="material-symbols-rounded">chevron_right</span></button>
       </div>
       <div class="rang-puces" id="puces" role="group" aria-label="Filtrer par partie"></div>
       <h2>Classement</h2>
@@ -176,34 +255,36 @@
 
     <!-- JOUEURS -->
     <section id="vue-joueurs" class="vue" hidden>
-      <button id="nouveauJoueur" class="gros">＋ Nouveau joueur</button>
+      <button id="nouveauJoueur" class="gros"><span class="material-symbols-rounded">person_add</span>Nouveau joueur</button>
       <h2>Joueurs</h2>
       <ul id="listeJoueursVue" class="carte-liste"></ul>
     </section>
   </main>
 
   <p id="statut" role="status" hidden></p>
+  <datalist id="listeParties"></datalist>
 
-  <!-- Feuille d'ajout de points -->
+  <!-- Feuille du bas : nouveau joueur / ajout de points -->
   <dialog id="feuille">
     <form id="formulaire" method="dialog">
       <h3 id="feuilleTitre">Ajouter des points</h3>
       <label class="champ" id="champNom">Nom du joueur
         <input id="fNom" maxlength="50" autocomplete="off">
       </label>
-      <label class="champ">Partie
-        <input id="fPartie" list="listeParties" maxlength="50" autocomplete="off" placeholder="ex. Belote">
-      </label>
-      <datalist id="listeParties"></datalist>
-      <label class="champ">Points (négatif pour en retirer)
-        <input id="fPoints" type="number" inputmode="numeric" step="1" placeholder="0">
-      </label>
-      <div class="deltas">
-        <button type="button" class="puce" data-delta="-5">−5</button>
-        <button type="button" class="puce" data-delta="-1">−1</button>
-        <button type="button" class="puce" data-delta="1">+1</button>
-        <button type="button" class="puce" data-delta="5">+5</button>
-        <button type="button" class="puce" data-delta="10">+10</button>
+      <div id="blocPoints">
+        <label class="champ">Partie (facultatif)
+          <input id="fPartie" list="listeParties" maxlength="50" autocomplete="off" placeholder="ex. Belote">
+        </label>
+        <label class="champ">Points (négatif pour en retirer)
+          <input id="fPoints" type="number" inputmode="numeric" step="1" placeholder="0">
+        </label>
+        <div class="deltas">
+          <button type="button" class="puce" data-delta="-5">−5</button>
+          <button type="button" class="puce" data-delta="-1">−1</button>
+          <button type="button" class="puce" data-delta="1">+1</button>
+          <button type="button" class="puce" data-delta="5">+5</button>
+          <button type="button" class="puce" data-delta="10">+10</button>
+        </div>
       </div>
       <div class="duo">
         <button type="button" id="fAnnuler" class="gros secondaire">Annuler</button>
@@ -225,6 +306,7 @@
     let saisonChoisie = null;
     let partieChoisie = TOUTES;
     let derniereMaj = 0;
+    let seqEnvoi = 0;
 
     // ---------- Petits outils ----------
     let minuteurStatut;
@@ -237,6 +319,20 @@
     }
     function lireLocal(cle, defaut) { try { return localStorage.getItem(cle) || defaut; } catch (e) { return defaut; } }
     function ecrireLocal(cle, valeur) { try { localStorage.setItem(cle, valeur); } catch (e) {} }
+
+    function el(tag, classe, texte) {
+      const e = document.createElement(tag);
+      if (classe) e.className = classe;
+      if (texte !== undefined) e.textContent = texte;
+      return e;
+    }
+    function icone(nom) { const s = el("span", "material-symbols-rounded", nom); s.setAttribute("aria-hidden", "true"); return s; }
+    function bouton(classe, nomIcone, texte) {
+      const b = el("button", classe);
+      if (nomIcone) b.appendChild(icone(nomIcone));
+      if (texte) b.appendChild(document.createTextNode(texte));
+      return b;
+    }
 
     function moisCourant() {
       const d = new Date();
@@ -252,15 +348,34 @@
       return m ? m[2] + "/" + m[1] + " " + m[3] : s;
     }
     function signe(n) { return (n > 0 ? "+" : "") + n; }
-    function el(tag, classe, texte) {
-      const e = document.createElement(tag);
-      if (classe) e.className = classe;
-      if (texte !== undefined) e.textContent = texte;
-      return e;
+    function saisonsDispo() { return [...new Set(lignes.map(l => l.saison).concat(moisCourant()))].sort(); }
+    function nomsJoueurs() { return [...new Set(lignes.map(l => l.joueur))].sort((a, b) => a.localeCompare(b)); }
+    function mm_ss(sec) { return String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0"); }
+
+    // ---------- Thème clair / sombre ----------
+    function themeEffectif() {
+      return document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     }
-    function saisonsDispo() {
-      return [...new Set(lignes.map(l => l.saison).concat(moisCourant()))].sort();
+    function majThemeInterface() {
+      const sombre = themeEffectif() === "dark";
+      $("themeIcone").textContent = sombre ? "light_mode" : "dark_mode"; // l'icône montre ce qu'on obtiendra
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = sombre ? "#12131a" : "#4f46e5";
     }
+    $("themeBtn").addEventListener("click", () => {
+      const nouveau = themeEffectif() === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = nouveau;
+      ecrireLocal("theme", nouveau);
+      majThemeInterface();
+    });
+    matchMedia("(prefers-color-scheme: dark)").addEventListener("change", majThemeInterface);
+
+    // Affiche les icônes seulement quand la police est chargée (évite d'afficher le nom en texte)
+    (function () {
+      const pret = () => document.documentElement.classList.add("icones-pretes");
+      try { document.fonts.load('24px "Material Symbols Rounded"').then(pret, pret); } catch (e) { pret(); }
+      setTimeout(pret, 3000);
+    })();
 
     // ---------- Navigation ----------
     const TITRES = { accueil: "Gasy-mal", partie: "Partie", points: "Points", joueurs: "Joueurs" };
@@ -271,9 +386,9 @@
       document.querySelectorAll(".vue").forEach(v => { v.hidden = v.id !== "vue-" + nom; });
       $("titre").textContent = TITRES[nom];
       $("retour").hidden = nom === "accueil";
-      $("actualiser").hidden = nom === "accueil" || nom === "partie";
-      if (nom === "partie") { if (chrono.enCours) garderEcran(); } else libererEcran();
-      if (nom !== "accueil" && nom !== "partie") charger(true);
+      $("actualiser").hidden = nom === "accueil";
+      if (nom === "partie") { if (chrono.phase === "course" || chrono.phase === "depart") garderEcran(); } else libererEcran();
+      if (nom !== "accueil") charger(true);
       window.scrollTo(0, 0);
     }
     function route() {
@@ -294,32 +409,33 @@
       let donnees;
       try { donnees = await reponse.json(); }
       catch (e) { throw new Error("Réponse illisible du script. Vérifiez son déploiement (accès : Tout le monde)."); }
-      if (!donnees.ok) throw new Error(donnees.erreur || "Erreur inconnue du script.");
+      if (!donnees.ok) {
+        if (donnees.erreur === "Action inconnue.") throw new Error("Le script Google n'est pas à jour : collez la nouvelle version de Code.gs et redéployez-le.");
+        throw new Error(donnees.erreur || "Erreur inconnue du script.");
+      }
       return donnees;
     }
 
     async function charger(discret) {
       if (discret && Date.now() - derniereMaj < 20000) return; // évite de surcharger le script
       if (!discret) statut("Chargement…");
+      const n = seqEnvoi;
       try {
         const donnees = await appeler();
-        lignes = donnees.lignes;
-        derniereMaj = Date.now();
-        afficher();
+        if (n === seqEnvoi) { lignes = donnees.lignes; derniereMaj = Date.now(); afficher(); }
         if (!discret) statut("");
       } catch (e) { statut(e.message, "erreur"); }
     }
     $("actualiser").addEventListener("click", () => { derniereMaj = 0; charger(false); });
 
     async function envoyer(corps, messageOk) {
-      statut("Enregistrement…");
+      const n = ++seqEnvoi;
+      if (messageOk) statut("Enregistrement…");
       try {
         // Pas d'en-tête Content-Type : évite un blocage de sécurité du navigateur (CORS)
         const donnees = await appeler({ method: "POST", body: JSON.stringify(corps) });
-        lignes = donnees.lignes;
-        derniereMaj = Date.now();
-        afficher();
-        statut(messageOk, "ok", 2500);
+        if (n === seqEnvoi) { lignes = donnees.lignes; derniereMaj = Date.now(); afficher(); }
+        if (messageOk) statut(messageOk, "ok", 2500);
         return true;
       } catch (e) { statut(e.message, "erreur"); return false; }
     }
@@ -341,19 +457,18 @@
     function afficher() {
       const saisons = saisonsDispo();
       if (!saisonChoisie || !saisons.includes(saisonChoisie)) saisonChoisie = moisCourant();
-      const parties = [...new Set(lignes.map(l => l.partie))].sort();
+      const parties = [...new Set(lignes.map(l => l.partie).filter(Boolean))].sort();
       if (partieChoisie !== TOUTES && !parties.includes(partieChoisie)) partieChoisie = TOUTES;
 
-      // Résumé sur l'accueil
       const top = calculer(moisCourant(), TOUTES)[0];
-      $("resume").textContent = top && top.mois > 0 ? "🥇 " + top.joueur + " en tête ce mois-ci (" + top.mois + " pts)" : "Classement par mois";
+      $("resume").textContent = top && top.mois > 0 ? top.joueur + " est en tête ce mois-ci (" + top.mois + " pts)" : "Classement par mois";
 
-      // Liste des parties (pour la saisie)
       const dl = $("listeParties"); dl.textContent = "";
       parties.forEach(p => { const o = el("option"); o.value = p; dl.appendChild(o); });
 
       afficherPoints(saisons, parties);
       afficherJoueurs();
+      afficherPanneauPoints();
     }
 
     function afficherPoints(saisons, parties) {
@@ -370,13 +485,15 @@
         puces.appendChild(b);
       });
 
-      const medailles = ["🥇", "🥈", "🥉"];
       const liste = $("classement"); liste.textContent = "";
-      const classement = calculer(saisonChoisie, partieChoisie).filter(c => c.mois !== 0 || c.cumul !== 0);
-      if (!classement.length) liste.appendChild(el("li", "vide", "Aucun point pour le moment."));
+      const classement = calculer(saisonChoisie, partieChoisie);
+      if (!classement.length) liste.appendChild(el("li", "vide", "Aucun joueur pour le moment."));
       classement.forEach((c, k) => {
         const li = el("li");
-        li.appendChild(el("span", "rang", c.mois > 0 && k < 3 ? medailles[k] : String(k + 1)));
+        const rang = el("span", "rang");
+        if (c.mois > 0 && k < 3) { rang.classList.add("r" + (k + 1)); rang.appendChild(icone("emoji_events")); }
+        else rang.textContent = String(k + 1);
+        li.appendChild(rang);
         li.appendChild(el("span", "nom", c.joueur));
         const score = el("span", "score", String(c.mois));
         score.appendChild(el("small", "", "total : " + c.cumul));
@@ -385,56 +502,57 @@
       });
 
       const histo = $("historique"); histo.textContent = "";
-      const duMois = lignes.filter(l => l.saison === saisonChoisie && (partieChoisie === TOUTES || l.partie === partieChoisie)).reverse();
+      const duMois = lignes.filter(l => l.saison === saisonChoisie && l.points !== 0 && (partieChoisie === TOUTES || l.partie === partieChoisie)).reverse();
       if (!duMois.length) histo.appendChild(el("li", "vide", "Rien ce mois-ci."));
       duMois.forEach(l => {
         const li = el("li");
         const nom = el("span", "nom", l.joueur);
-        nom.appendChild(el("small", "", l.partie + " · " + dateCourte(l.date)));
+        nom.appendChild(el("small", "", (l.partie || "Sans partie") + " · " + dateCourte(l.date)));
         li.appendChild(nom);
         li.appendChild(el("span", "score " + (l.points >= 0 ? "positif" : "negatif"), signe(l.points)));
-        const b = el("button", "suppr", "✕");
+        const b = el("button", "suppr");
+        b.appendChild(icone("delete"));
         b.setAttribute("aria-label", "Supprimer cette ligne");
         b.addEventListener("click", () => {
-          if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + signe(l.points) + " (" + l.partie + ")"))
+          if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + signe(l.points) + " (" + (l.partie || "sans partie") + ")"))
             envoyer({ action: "supprimer", id: l.id }, "Ligne supprimée.");
         });
         li.appendChild(b);
         histo.appendChild(li);
       });
     }
-
     $("moisPrec").addEventListener("click", () => { const s = saisonsDispo(); saisonChoisie = s[Math.max(0, s.indexOf(saisonChoisie) - 1)]; afficher(); });
     $("moisSuiv").addEventListener("click", () => { const s = saisonsDispo(); saisonChoisie = s[Math.min(s.length - 1, s.indexOf(saisonChoisie) + 1)]; afficher(); });
 
     function afficherJoueurs() {
       const liste = $("listeJoueursVue"); liste.textContent = "";
       const mois = Object.fromEntries(calculer(moisCourant(), TOUTES).map(c => [c.joueur, c.mois]));
-      const noms = Object.keys(mois).sort((a, b) => a.localeCompare(b));
+      const noms = nomsJoueurs();
       if (!noms.length) liste.appendChild(el("li", "vide", "Aucun joueur pour le moment. Ajoutez-en un !"));
       noms.forEach(nom => {
-        const li = el("li");
+        const li = el("li", "sans-marge");
         const b = el("button", "ligne-joueur");
         b.setAttribute("aria-label", "Ajouter des points à " + nom);
         const n = el("span", "nom", nom);
-        n.appendChild(el("small", "", "ce mois-ci : " + mois[nom] + " pts"));
+        n.appendChild(el("small", "", "ce mois-ci : " + (mois[nom] || 0) + " pts"));
         b.appendChild(n);
-        b.appendChild(el("span", "plus", "＋"));
+        const plus = el("span", "plus"); plus.appendChild(icone("add"));
+        b.appendChild(plus);
         b.addEventListener("click", () => ouvrirFeuille(nom));
         li.appendChild(b);
         liste.appendChild(li);
       });
     }
 
-    // ---------- Feuille d'ajout de points ----------
+    // ---------- Feuille du bas : nouveau joueur / points ----------
     function ouvrirFeuille(joueur) {
       const nouveau = !joueur;
       $("feuilleTitre").textContent = nouveau ? "Nouveau joueur" : "Points pour " + joueur;
       $("champNom").hidden = !nouveau;
+      $("blocPoints").hidden = nouveau;
       $("fNom").value = joueur || "";
       $("fNom").required = nouveau;
-      const derniere = lignes.length ? lignes[lignes.length - 1].partie : "";
-      $("fPartie").value = lireLocal("dernierePartie", derniere);
+      $("fPartie").value = lireLocal("dernierePartie", "");
       $("fPoints").value = "";
       $("feuille").showModal();
       (nouveau ? $("fNom") : $("fPoints")).focus();
@@ -447,105 +565,263 @@
 
     $("formulaire").addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      const nom = $("fNom").value.trim(), partie = $("fPartie").value.trim(), points = Number($("fPoints").value);
+      const nouveau = !$("champNom").hidden;
+      const nom = $("fNom").value.trim();
       if (!nom) { statut("Entrez le nom du joueur.", "erreur", 3000); return; }
-      if (!partie) { statut("Entrez le nom de la partie.", "erreur", 3000); return; }
-      if (!points || !Number.isInteger(points)) { statut("Entrez un nombre de points entier, différent de zéro.", "erreur", 3000); return; }
+      let corps, message;
+      if (nouveau) {
+        corps = { action: "creerJoueur", joueur: nom };
+        message = nom + " a été ajouté.";
+      } else {
+        const points = Number($("fPoints").value);
+        if (!points || !Number.isInteger(points)) { statut("Entrez un nombre de points entier, différent de zéro.", "erreur", 3000); return; }
+        const partie = $("fPartie").value.trim();
+        corps = { action: "ajouter", partie, joueur: nom, points };
+        message = signe(points) + " pour " + nom;
+        ecrireLocal("dernierePartie", partie);
+      }
       $("fValider").disabled = true;
-      const reussi = await envoyer({ action: "ajouter", partie, joueur: nom, points }, signe(points) + " pour " + nom + " ✔");
+      const reussi = await envoyer(corps, message);
       $("fValider").disabled = false;
-      if (reussi) { ecrireLocal("dernierePartie", partie); $("feuille").close(); }
+      if (reussi) $("feuille").close();
     });
-    // Fermer la feuille en touchant en dehors
     $("feuille").addEventListener("click", ev => { if (ev.target === $("feuille")) $("feuille").close(); });
 
-    // ---------- Chronomètre (compte à rebours personnalisable) ----------
-    const chrono = { restant: 0, fin: 0, minuteur: null, enCours: false };
-    let verrouEcran = null;
+    // ---------- Points en pleine partie ----------
+    const pointsPartie = {}; // joueur -> points donnés pendant cette partie
 
-    async function garderEcran() { // empêche la mise en veille pendant la partie
-      try { if ("wakeLock" in navigator && !verrouEcran) verrouEcran = await navigator.wakeLock.request("screen"); } catch (e) {}
-    }
-    function libererEcran() { try { if (verrouEcran) verrouEcran.release(); } catch (e) {} verrouEcran = null; }
+    $("boutonPoints").addEventListener("click", () => {
+      const ouvert = $("panneauPoints").hidden;
+      $("panneauPoints").hidden = !ouvert;
+      $("boutonPointsTexte").textContent = ouvert ? "Masquer les points" : "Attribuer des points";
+      if (ouvert) { $("pPartie").value = lireLocal("dernierePartie", ""); afficherPanneauPoints(); }
+    });
+    $("pPartie").addEventListener("change", () => ecrireLocal("dernierePartie", $("pPartie").value.trim()));
 
-    function dureeSaisie() {
-      const m = Math.min(999, Math.max(0, Math.floor(Number($("chronoMin").value) || 0)));
-      const s = Math.min(59, Math.max(0, Math.floor(Number($("chronoSec").value) || 0)));
-      return m * 60 + s;
-    }
-    function afficherChrono(sec) {
-      $("affichageChrono").textContent = String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0");
-    }
-    function bip() {
-      try { if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        [0, 0.35, 0.7].forEach(d => {
-          const o = ctx.createOscillator(), g = ctx.createGain();
-          o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-          g.gain.setValueAtTime(0.4, ctx.currentTime + d);
-          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + d + 0.25);
-          o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + 0.3);
-        });
-      } catch (e) {}
-    }
-    function arreterChrono() {
-      clearInterval(chrono.minuteur);
-      chrono.enCours = false;
-      $("chronoDemarrer").textContent = "Démarrer";
-      libererEcran();
-    }
-    function tic() {
-      chrono.restant = Math.max(0, Math.ceil((chrono.fin - Date.now()) / 1000));
-      afficherChrono(chrono.restant);
-      if (chrono.restant === 0) {
-        arreterChrono();
-        $("affichageChrono").classList.add("fini");
-        $("chronoDemarrer").textContent = "Relancer";
-        bip();
-        if (vueActuelle !== "partie") statut("⏰ Temps écoulé !", "ok", 6000);
-      }
-    }
-    function reglerChrono(sec) {
-      arreterChrono();
-      chrono.restant = sec;
-      $("affichageChrono").classList.remove("fini");
-      $("chronoMin").value = Math.floor(sec / 60);
-      $("chronoSec").value = sec % 60;
-      afficherChrono(sec);
-      ecrireLocal("chronoDuree", String(sec));
-    }
-    $("chronoDemarrer").addEventListener("click", () => {
-      if (chrono.enCours) { // Pause
-        chrono.restant = Math.max(0, Math.ceil((chrono.fin - Date.now()) / 1000));
-        arreterChrono();
-        $("chronoDemarrer").textContent = "Reprendre";
+    function afficherPanneauPoints() {
+      const liste = $("listePoints"); liste.textContent = "";
+      const noms = nomsJoueurs();
+      if (!noms.length) {
+        liste.appendChild(el("li", "vide", "Aucun joueur. Ajoutez-en depuis l'écran Joueurs."));
         return;
       }
-      if (chrono.restant <= 0) reglerChrono(dureeSaisie());
-      if (chrono.restant <= 0) { statut("Entrez une durée supérieure à 0.", "erreur", 3000); return; }
-      $("affichageChrono").classList.remove("fini");
-      chrono.fin = Date.now() + chrono.restant * 1000;
-      chrono.enCours = true;
-      $("chronoDemarrer").textContent = "Pause";
-      chrono.minuteur = setInterval(tic, 250);
+      noms.forEach(nom => {
+        const li = el("li", "sans-marge");
+        const b = el("button", "ligne-point");
+        b.setAttribute("aria-label", "Donner 1 point à " + nom);
+        b.appendChild(el("span", "nom", nom));
+        const n = pointsPartie[nom] || 0;
+        b.appendChild(el("span", "badge" + (n ? "" : " zero"), n ? signe(n) : "0"));
+        const plus = el("span", "plus"); plus.appendChild(icone("add"));
+        b.appendChild(plus);
+        b.addEventListener("click", () => pointRapide(nom, 1));
+        li.appendChild(b);
+        const moins = el("button", "suppr");
+        moins.appendChild(icone("remove"));
+        moins.setAttribute("aria-label", "Retirer 1 point à " + nom);
+        moins.addEventListener("click", () => pointRapide(nom, -1));
+        li.appendChild(moins);
+        liste.appendChild(li);
+      });
+    }
+
+    async function pointRapide(joueur, delta) {
+      pointsPartie[joueur] = (pointsPartie[joueur] || 0) + delta;
+      afficherPanneauPoints();
+      const partie = $("pPartie").value.trim();
+      ecrireLocal("dernierePartie", partie);
+      const ok = await envoyer({ action: "ajouter", partie, joueur, points: delta }, null);
+      if (!ok) { pointsPartie[joueur] -= delta; afficherPanneauPoints(); }
+    }
+
+    // ---------- Sons ----------
+    let ctxAudio = null;
+    function audio() {
+      try {
+        if (!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctxAudio.state === "suspended") ctxAudio.resume();
+      } catch (e) {}
+      return ctxAudio;
+    }
+    function note(freq, debut, duree, volume, type) {
+      const c = audio(); if (!c) return;
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type || "sine"; o.frequency.value = freq; o.connect(g); g.connect(c.destination);
+      const t = c.currentTime + debut;
+      g.gain.setValueAtTime(volume || 0.35, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + duree);
+      o.start(t); o.stop(t + duree + 0.05);
+    }
+    function vibrer(motif) { try { if (navigator.vibrate) navigator.vibrate(motif); } catch (e) {} }
+    // Quatre sons bien différents :
+    function sonTick()   { note(500, 0, 0.12, 0.3); }                                  // compte à rebours : tic grave et court
+    function sonGo()     { note(1000, 0, 0.7, 0.4); note(1500, 0, 0.7, 0.25); vibrer(200); } // départ : note aiguë et longue
+    function sonManche() { note(700, 0, 0.18, 0.4, "triangle"); note(700, 0.25, 0.18, 0.4, "triangle"); vibrer([150, 80, 150]); } // fin de manche : double bip
+    function sonFin()    { [880, 880, 880].forEach((f, i) => note(f, i * 0.4, 0.3, 0.45, "square")); note(1320, 1.3, 1, 0.4, "square"); vibrer([400, 150, 400, 150, 800]); } // fin : triple bip + note longue
+
+    // ---------- Chronomètre avec sous-chronomètre ----------
+    // phases : repos, depart (compte à rebours de lancement), course, pause, fini
+    const chrono = { phase: "repos", totalMs: 0, restantMs: 0, fin: 0, depart: 0, manches: 1, limites: [0, 0], mancheVue: 0, departVu: 0, minuteur: null };
+    let verrouEcran = null;
+
+    async function garderEcran() { try { if ("wakeLock" in navigator && !verrouEcran) verrouEcran = await navigator.wakeLock.request("screen"); } catch (e) {} }
+    function libererEcran() { try { if (verrouEcran) verrouEcran.release(); } catch (e) {} verrouEcran = null; }
+
+    function lireReglages() {
+      const m = Math.min(999, Math.max(0, Math.floor(Number($("chronoMin").value) || 0)));
+      const s = Math.min(59, Math.max(0, Math.floor(Number($("chronoSec").value) || 0)));
+      const total = m * 60 + s;
+      let manches = $("sousOn").checked ? Math.floor(Number($("chronoManches").value) || 2) : 1;
+      manches = Math.max(1, Math.min(60, manches));
+      const delai = Math.min(10, Math.max(0, Math.floor(Number($("chronoDelai").value) || 0)));
+      return { total, manches, delai, sous: $("sousOn").checked };
+    }
+
+    function majBoutonDemarrer() {
+      const textes = { repos: ["play_arrow", "Démarrer"], depart: ["close", "Annuler"], course: ["pause", "Pause"], pause: ["play_arrow", "Reprendre"], fini: ["replay", "Relancer"] };
+      const [ic, txt] = textes[chrono.phase];
+      const b = $("chronoDemarrer"); b.textContent = "";
+      b.appendChild(icone(ic)); b.appendChild(document.createTextNode(txt));
+    }
+
+    function arreterBoucle() { clearInterval(chrono.minuteur); chrono.minuteur = null; }
+
+    // Prépare le chrono avec les réglages actuels (remise à zéro)
+    function initialiserChrono() {
+      arreterBoucle(); libererEcran();
+      const r = lireReglages();
+      $("blocManches").hidden = !r.sous;
+      chrono.phase = "repos";
+      chrono.totalMs = r.total * 1000;
+      chrono.restantMs = chrono.totalMs;
+      chrono.manches = Math.max(1, Math.min(r.manches, Math.max(1, r.total)));
+      chrono.limites = Array.from({ length: chrono.manches + 1 }, (_, k) => Math.round(chrono.totalMs * k / chrono.manches));
+      chrono.mancheVue = 0; chrono.departVu = 0;
+      ecrireLocal("chronoReglages", JSON.stringify({ total: r.total, manches: r.manches, delai: r.delai, sous: r.sous }));
+      $("aideManches").textContent = r.sous && r.total > 0
+        ? (r.manches > r.total ? "Trop de manches pour cette durée." : "Chaque manche dure environ " + mm_ss(Math.round(r.total / r.manches)) + ".")
+        : "";
+      // repères sur la barre
+      const barre = $("barre");
+      barre.querySelectorAll(".repere").forEach(n => n.remove());
+      for (let k = 1; k < chrono.manches; k++) {
+        const rep = el("div", "repere"); rep.style.left = (100 * k / chrono.manches) + "%"; barre.appendChild(rep);
+      }
+      majBoutonDemarrer();
+      rendre();
+    }
+
+    // Met à jour l'affichage selon la phase et l'heure
+    function rendre() {
+      const N = chrono.manches, T = chrono.totalMs;
+      const grand = $("affichageChrono");
+      grand.classList.remove("fini", "depart");
+      $("infoTotal").hidden = N <= 1;
+      $("barre").hidden = N <= 1;
+
+      if (chrono.phase === "depart") {
+        const reste = Math.max(1, Math.ceil((chrono.depart - Date.now()) / 1000));
+        grand.textContent = String(reste); grand.classList.add("depart");
+        $("etiquetteChrono").textContent = "Préparez-vous";
+        return;
+      }
+      const restant = chrono.phase === "course" ? Math.max(0, chrono.fin - Date.now()) : chrono.restantMs;
+      const ecoule = T - restant;
+      let i = 0; while (i < N - 1 && ecoule >= chrono.limites[i + 1]) i++;
+      const resteManche = chrono.limites[i + 1] - ecoule;
+      grand.textContent = mm_ss(Math.ceil((N > 1 ? resteManche : restant) / 1000));
+      if (chrono.phase === "fini") grand.classList.add("fini");
+      $("etiquetteChrono").textContent = chrono.phase === "fini" ? "Terminé" : (N > 1 ? "Manche " + (i + 1) + " / " + N : "Chronomètre");
+      $("totalChrono").textContent = mm_ss(Math.ceil(restant / 1000));
+      $("barreRemplie").style.width = (T ? 100 * ecoule / T : 0) + "%";
+      return i;
+    }
+
+    function tic() {
+      const maintenant = Date.now();
+      if (chrono.phase === "depart") {
+        const reste = Math.ceil((chrono.depart - maintenant) / 1000);
+        if (reste > 0) {
+          if (reste !== chrono.departVu) { chrono.departVu = reste; sonTick(); }
+          rendre(); return;
+        }
+        chrono.phase = "course";
+        chrono.fin = maintenant + chrono.restantMs;
+        sonGo();
+        majBoutonDemarrer();
+      }
+      if (chrono.phase === "course") {
+        const restant = Math.max(0, chrono.fin - maintenant);
+        const i = rendre();
+        if (restant === 0) {
+          chrono.phase = "fini"; chrono.restantMs = 0;
+          arreterBoucle(); libererEcran(); majBoutonDemarrer(); rendre();
+          sonFin();
+          if (vueActuelle !== "partie") statut("Temps écoulé !", "ok", 6000);
+        } else if (i > chrono.mancheVue) {
+          chrono.mancheVue = i; sonManche();
+        }
+      }
+    }
+
+    $("chronoDemarrer").addEventListener("click", () => {
+      audio(); // autorise le son (obligatoire après un toucher sur mobile)
+      const phase = chrono.phase;
+      if (phase === "depart") { initialiserChrono(); return; }
+      if (phase === "course") {
+        chrono.restantMs = Math.max(0, chrono.fin - Date.now());
+        chrono.phase = "pause"; arreterBoucle(); libererEcran(); majBoutonDemarrer(); rendre();
+        return;
+      }
+      if (phase === "fini") initialiserChrono();
+      if (chrono.phase === "repos") {
+        const r = lireReglages();
+        if (r.total <= 0) { statut("Entrez une durée supérieure à 0.", "erreur", 3000); return; }
+        if (r.manches > r.total) { statut("Trop de manches pour cette durée.", "erreur", 3000); return; }
+        statut("");
+        for (const k in pointsPartie) delete pointsPartie[k]; // nouvelle partie : compteurs à zéro
+        afficherPanneauPoints();
+        chrono.mancheVue = 0; chrono.departVu = 0;
+        if (r.delai > 0) { chrono.phase = "depart"; chrono.depart = Date.now() + r.delai * 1000; }
+        else { chrono.phase = "course"; chrono.fin = Date.now() + chrono.restantMs; sonGo(); }
+      } else { // reprise après pause
+        chrono.phase = "course"; chrono.fin = Date.now() + chrono.restantMs;
+      }
+      majBoutonDemarrer();
       garderEcran();
+      arreterBoucle();
+      chrono.minuteur = setInterval(tic, 100);
       tic();
     });
-    $("chronoReset").addEventListener("click", () => reglerChrono(dureeSaisie()));
-    ["chronoMin", "chronoSec"].forEach(id => $(id).addEventListener("change", () => { if (!chrono.enCours) reglerChrono(dureeSaisie()); }));
-    document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => reglerChrono(Number(b.dataset.preset))));
+    $("chronoReset").addEventListener("click", initialiserChrono);
+    ["chronoMin", "chronoSec", "chronoManches", "chronoDelai", "sousOn"].forEach(id => $(id).addEventListener("change", initialiserChrono));
+    document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
+      const s = Number(b.dataset.preset);
+      $("chronoMin").value = Math.floor(s / 60); $("chronoSec").value = s % 60;
+      initialiserChrono();
+    }));
 
     // ---------- Démarrage ----------
-    reglerChrono(Number(lireLocal("chronoDuree", "300")) || 300);
+    (function restaurerReglages() {
+      try {
+        const r = JSON.parse(lireLocal("chronoReglages", "null"));
+        if (r) {
+          $("chronoMin").value = Math.floor(r.total / 60); $("chronoSec").value = r.total % 60;
+          $("sousOn").checked = !!r.sous; $("chronoManches").value = r.manches > 1 ? r.manches : 2;
+          $("chronoDelai").value = r.delai;
+        }
+      } catch (e) {}
+    })();
+    majThemeInterface();
+    initialiserChrono();
     route();
     charger(false);
     // Mise à jour automatique douce : seulement si la page est visible et sur les écrans de points
-    setInterval(() => { if (document.visibilityState === "visible" && (vueActuelle === "points" || vueActuelle === "joueurs")) charger(true); }, 60000);
+    setInterval(() => { if (document.visibilityState === "visible" && vueActuelle !== "accueil") charger(true); }, 60000);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
-        if (chrono.enCours && vueActuelle === "partie") garderEcran();
-        if (vueActuelle === "points" || vueActuelle === "joueurs") charger(true);
+        if ((chrono.phase === "course" || chrono.phase === "depart") && vueActuelle === "partie") garderEcran();
+        if (vueActuelle !== "accueil") charger(true);
       }
     });
   </script>

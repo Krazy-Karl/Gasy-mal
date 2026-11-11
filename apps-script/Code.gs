@@ -2,6 +2,7 @@
 // Gasy-mal : script Apps Script lié au Google Sheets
 // Une ligne = les points d'un joueur sur une partie, à une date.
 // La saison (un mois, ex. 2026-11) est calculée automatiquement.
+// Un joueur créé sans points est enregistré avec 0 point et sans partie.
 // =====================================================================
 
 const NOM_FEUILLE = "Points";
@@ -28,7 +29,7 @@ function doGet(e) {
   }
 }
 
-// ÉCRITURE : ajouter ou supprimer une ligne
+// ÉCRITURE : ajouter des points, créer un joueur ou supprimer une ligne
 function doPost(e) {
   const verrou = LockService.getScriptLock();
   let verrouPris = false;
@@ -38,22 +39,23 @@ function doPost(e) {
     const d = JSON.parse(e.postData.contents);
 
     if (d.action === "ajouter") {
-      const partie = nettoyer(d.partie);
+      const partie = nettoyer(d.partie);   // facultatif
       const joueur = nettoyer(d.joueur);
       const points = Number(d.points);
-      if (!partie) return reponse({ ok: false, erreur: "Le nom de la partie est obligatoire." });
       if (!joueur) return reponse({ ok: false, erreur: "Le nom du joueur est obligatoire." });
       if (!isFinite(points) || points === 0 || Math.abs(points) > POINTS_MAX) {
         return reponse({ ok: false, erreur: "Les points doivent être un nombre non nul (entre -" + POINTS_MAX + " et " + POINTS_MAX + ")." });
       }
-      const maintenant = new Date();
-      const tz = Session.getScriptTimeZone();
-      feuille().appendRow([
-        Utilities.getUuid(),
-        Utilities.formatDate(maintenant, tz, "yyyy-MM-dd HH:mm"),
-        Utilities.formatDate(maintenant, tz, "yyyy-MM"),
-        partie, joueur, points
-      ]);
+      ajouterLigne(partie, joueur, points);
+      return reponse({ ok: true, lignes: lireLignes() });
+    }
+
+    if (d.action === "creerJoueur") {
+      const joueur = nettoyer(d.joueur);
+      if (!joueur) return reponse({ ok: false, erreur: "Le nom du joueur est obligatoire." });
+      const existe = lireLignes().some(l => l.joueur.toLowerCase() === joueur.toLowerCase());
+      if (existe) return reponse({ ok: false, erreur: "Ce joueur existe déjà." });
+      ajouterLigne("", joueur, 0);
       return reponse({ ok: true, lignes: lireLignes() });
     }
 
@@ -76,6 +78,17 @@ function doPost(e) {
 }
 
 // ---------- Fonctions utilitaires ----------
+
+function ajouterLigne(partie, joueur, points) {
+  const maintenant = new Date();
+  const tz = Session.getScriptTimeZone();
+  feuille().appendRow([
+    Utilities.getUuid(),
+    Utilities.formatDate(maintenant, tz, "yyyy-MM-dd HH:mm"),
+    Utilities.formatDate(maintenant, tz, "yyyy-MM"),
+    partie, joueur, points
+  ]);
+}
 
 function feuille() {
   const f = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOM_FEUILLE);
