@@ -25,12 +25,35 @@
     .erreur { color: #b00020; }
     .ok { color: #137333; }
     .vide { color: #777; text-align: center; padding: 1rem 0; }
+    .chrono { text-align: center; border: 1px solid #e3e3e3; border-radius: 10px; padding: 1rem; margin-top: 1rem; }
+    #affichageChrono { font-size: 3.5rem; font-variant-numeric: tabular-nums; font-weight: 600; margin: .3rem 0; }
+    #affichageChrono.fini { color: #b00020; }
+    .chrono input[type=number] { width: 5rem; text-align: center; }
+    .chrono .barre { justify-content: center; margin-top: .5rem; }
     .petit { color: #777; font-size: .85rem; }
   </style>
 </head>
 <body>
   <h1>Comptage de points</h1>
   <p id="statut"></p>
+
+  <div class="chrono">
+    <div class="barre">
+      <label>Minutes <input id="chronoMin" type="number" min="0" max="999" value="5"></label>
+      <label>Secondes <input id="chronoSec" type="number" min="0" max="59" value="0"></label>
+    </div>
+    <div class="barre">
+      <button class="secondaire" data-preset="60">1 min</button>
+      <button class="secondaire" data-preset="300">5 min</button>
+      <button class="secondaire" data-preset="600">10 min</button>
+      <button class="secondaire" data-preset="900">15 min</button>
+    </div>
+    <div id="affichageChrono" aria-live="off">05:00</div>
+    <div class="barre">
+      <button id="chronoDemarrer">Démarrer</button>
+      <button id="chronoReset" class="secondaire">Réinitialiser</button>
+    </div>
+  </div>
 
   <div class="barre">
     <label>Saison (mois) :
@@ -254,6 +277,90 @@
     $("choixSaison").addEventListener("change", afficher);
     $("choixPartie").addEventListener("change", afficher);
     $("actualiser").addEventListener("click", charger);
+
+    // ---------- Chronomètre (compte à rebours personnalisable) ----------
+    const chrono = { restant: 0, fin: 0, minuteur: null, enCours: false };
+
+    function dureeSaisie() {
+      const m = Math.min(999, Math.max(0, Math.floor(Number($("chronoMin").value) || 0)));
+      const s = Math.min(59, Math.max(0, Math.floor(Number($("chronoSec").value) || 0)));
+      return m * 60 + s;
+    }
+
+    function formaterChrono(secondes) {
+      const m = Math.floor(secondes / 60), s = secondes % 60;
+      return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+
+    function afficherChrono(secondes) {
+      $("affichageChrono").textContent = formaterChrono(secondes);
+    }
+
+    function bip() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        [0, 0.35, 0.7].forEach(delai => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+          g.gain.setValueAtTime(0.3, ctx.currentTime + delai);
+          g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delai + 0.25);
+          o.start(ctx.currentTime + delai); o.stop(ctx.currentTime + delai + 0.3);
+        });
+      } catch (e) { /* pas de son possible : on affiche juste le message */ }
+    }
+
+    function arreterChrono() {
+      clearInterval(chrono.minuteur);
+      chrono.enCours = false;
+      $("chronoDemarrer").textContent = "Démarrer";
+    }
+
+    function tic() {
+      chrono.restant = Math.max(0, Math.ceil((chrono.fin - Date.now()) / 1000));
+      afficherChrono(chrono.restant);
+      if (chrono.restant === 0) {
+        arreterChrono();
+        $("affichageChrono").classList.add("fini");
+        statut("⏰ Temps écoulé !", "ok");
+        bip();
+      }
+    }
+
+    function reglerChrono(secondes) {
+      arreterChrono();
+      chrono.restant = secondes;
+      $("affichageChrono").classList.remove("fini");
+      $("chronoMin").value = Math.floor(secondes / 60);
+      $("chronoSec").value = secondes % 60;
+      afficherChrono(secondes);
+      try { localStorage.setItem("chronoDuree", String(secondes)); } catch (e) {}
+    }
+
+    $("chronoDemarrer").addEventListener("click", () => {
+      if (chrono.enCours) { // Pause
+        chrono.restant = Math.max(0, Math.ceil((chrono.fin - Date.now()) / 1000));
+        arreterChrono();
+        $("chronoDemarrer").textContent = "Reprendre";
+        return;
+      }
+      if (chrono.restant <= 0) reglerChrono(dureeSaisie());
+      if (chrono.restant <= 0) { statut("Entrez une durée supérieure à 0.", "erreur"); return; }
+      statut("");
+      $("affichageChrono").classList.remove("fini");
+      chrono.fin = Date.now() + chrono.restant * 1000;
+      chrono.enCours = true;
+      $("chronoDemarrer").textContent = "Pause";
+      chrono.minuteur = setInterval(tic, 250);
+      tic();
+    });
+
+    $("chronoReset").addEventListener("click", () => reglerChrono(dureeSaisie()));
+    ["chronoMin", "chronoSec"].forEach(id => $(id).addEventListener("change", () => { if (!chrono.enCours) reglerChrono(dureeSaisie()); }));
+    document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => reglerChrono(Number(b.dataset.preset))));
+
+    let dureeInitiale = 300;
+    try { dureeInitiale = Number(localStorage.getItem("chronoDuree")) || 300; } catch (e) {}
+    reglerChrono(dureeInitiale);
 
     charger();
     setInterval(charger, 60000); // mise à jour automatique toutes les minutes
