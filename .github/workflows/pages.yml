@@ -26,7 +26,8 @@ jobs:
       - name: Préparer uniquement les fichiers du site
         run: |
           mkdir _site
-          cp index.html _site/
+          cp index.html manifest.webmanifest sw.js _site/
+          cp -r icons _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
