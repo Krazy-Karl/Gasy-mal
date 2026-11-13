@@ -112,6 +112,10 @@
     .reglage label { flex: 1; font-size: .85rem; color: var(--discret); }
     .option { display: flex; align-items: center; gap: .7rem; min-height: 44px; margin-top: .6rem; }
     .option input[type=checkbox] { width: 24px; height: 24px; min-height: 0; accent-color: var(--accent); }
+    .manche-ligne { display: flex; align-items: center; gap: .4rem; margin: .5rem 0; }
+    .manche-ligne .mn { flex: 1; font-weight: 600; white-space: nowrap; }
+    .manche-ligne input { width: 4.2rem; min-width: 0; text-align: center; padding: .5rem .2rem; }
+    .manche-ligne .unite { color: var(--discret); font-size: .85rem; }
     .aide { color: var(--discret); font-size: .85rem; margin: .3rem 0 0; }
 
     /* ----- Points en pleine partie ----- */
@@ -220,23 +224,25 @@
 
       <details>
         <summary><span class="material-symbols-rounded">settings</span>Régler le chronomètre</summary>
-        <div class="reglage">
-          <label>Minutes <input id="chronoMin" type="number" inputmode="numeric" min="0" max="999" value="5"></label>
-          <label>Secondes <input id="chronoSec" type="number" inputmode="numeric" min="0" max="59" value="0"></label>
-        </div>
-        <div class="rang-puces">
-          <button class="puce" data-preset="30">30 s</button>
-          <button class="puce" data-preset="60">1 min</button>
-          <button class="puce" data-preset="180">3 min</button>
-          <button class="puce" data-preset="300">5 min</button>
-          <button class="puce" data-preset="600">10 min</button>
-          <button class="puce" data-preset="900">15 min</button>
+        <div id="blocTotal">
+          <div class="reglage">
+            <label>Minutes <input id="chronoMin" type="number" inputmode="numeric" min="0" max="999" value="5"></label>
+            <label>Secondes <input id="chronoSec" type="number" inputmode="numeric" min="0" max="59" value="0"></label>
+          </div>
+          <div class="rang-puces">
+            <button class="puce" data-preset="30">30 s</button>
+            <button class="puce" data-preset="60">1 min</button>
+            <button class="puce" data-preset="180">3 min</button>
+            <button class="puce" data-preset="300">5 min</button>
+            <button class="puce" data-preset="600">10 min</button>
+            <button class="puce" data-preset="900">15 min</button>
+          </div>
         </div>
         <label class="option"><input id="sousOn" type="checkbox"> Diviser en manches (sous-chronomètre)</label>
         <div id="blocManches" hidden>
-          <label class="champ">Nombre de manches
-            <input id="chronoManches" type="number" inputmode="numeric" min="2" max="60" value="2">
-          </label>
+          <p class="aide">Réglez la durée de chaque manche. Le chrono total est la somme des manches.</p>
+          <div id="listeManches"></div>
+          <button type="button" id="ajouterManche" class="puce"><span class="material-symbols-rounded" aria-hidden="true">add</span> Ajouter une manche</button>
           <p class="aide" id="aideManches"></p>
         </div>
         <label class="champ">Compte à rebours avant le départ (secondes, 0 = aucun)
@@ -724,15 +730,55 @@
     async function garderEcran() { try { if ("wakeLock" in navigator && !verrouEcran) verrouEcran = await navigator.wakeLock.request("screen"); } catch (e) {} }
     function libererEcran() { try { if (verrouEcran) verrouEcran.release(); } catch (e) {} verrouEcran = null; }
 
+    const MAX_MANCHES = 20;
+    let manchesDur = [150, 150]; // durée de chaque manche, en secondes
+
+    function borne(v, max) { return Math.min(max, Math.max(0, Math.floor(Number(v) || 0))); }
     function lireReglages() {
-      const m = Math.min(999, Math.max(0, Math.floor(Number($("chronoMin").value) || 0)));
-      const s = Math.min(59, Math.max(0, Math.floor(Number($("chronoSec").value) || 0)));
-      const total = m * 60 + s;
-      let manches = $("sousOn").checked ? Math.floor(Number($("chronoManches").value) || 2) : 1;
-      manches = Math.max(1, Math.min(60, manches));
-      const delai = Math.min(10, Math.max(0, Math.floor(Number($("chronoDelai").value) || 0)));
-      return { total, manches, delai, sous: $("sousOn").checked };
+      const sous = $("sousOn").checked;
+      const delai = borne($("chronoDelai").value, 10);
+      let manches;
+      if (sous) manches = manchesDur.slice();
+      else manches = [borne($("chronoMin").value, 999) * 60 + borne($("chronoSec").value, 59)];
+      return { sous, manches, total: manches.reduce((a, d) => a + d, 0), delai };
     }
+
+    // Affiche une ligne par manche (min + sec + bouton retirer)
+    function construireManches() {
+      const liste = $("listeManches"); liste.textContent = "";
+      manchesDur.forEach((d, i) => {
+        const ligne = el("div", "manche-ligne");
+        ligne.appendChild(el("span", "mn", "Manche " + (i + 1)));
+        const min = el("input"); min.type = "number"; min.inputMode = "numeric"; min.min = 0; min.max = 999;
+        min.value = Math.floor(d / 60); min.setAttribute("aria-label", "Minutes de la manche " + (i + 1));
+        const sec = el("input"); sec.type = "number"; sec.inputMode = "numeric"; sec.min = 0; sec.max = 59;
+        sec.value = d % 60; sec.setAttribute("aria-label", "Secondes de la manche " + (i + 1));
+        const maj = () => { manchesDur[i] = borne(min.value, 999) * 60 + borne(sec.value, 59); initialiserChrono(); };
+        min.addEventListener("change", maj); sec.addEventListener("change", maj);
+        ligne.appendChild(min); ligne.appendChild(el("span", "unite", "min"));
+        ligne.appendChild(sec); ligne.appendChild(el("span", "unite", "s"));
+        const retirer = el("button", "suppr"); retirer.type = "button"; retirer.appendChild(icone("close"));
+        retirer.setAttribute("aria-label", "Retirer la manche " + (i + 1));
+        retirer.disabled = manchesDur.length <= 2;
+        retirer.addEventListener("click", () => { manchesDur.splice(i, 1); construireManches(); initialiserChrono(); });
+        ligne.appendChild(retirer);
+        liste.appendChild(ligne);
+      });
+      $("ajouterManche").hidden = manchesDur.length >= MAX_MANCHES;
+    }
+    $("ajouterManche").addEventListener("click", () => {
+      manchesDur.push(manchesDur[manchesDur.length - 1] || 60);
+      construireManches(); initialiserChrono();
+    });
+    $("sousOn").addEventListener("change", () => {
+      if ($("sousOn").checked) { // on part du chrono actuel, coupé en 2 manches égales
+        const t = borne($("chronoMin").value, 999) * 60 + borne($("chronoSec").value, 59);
+        if (manchesDur.length < 2 || manchesDur.every(d => d === 0)) manchesDur = [60, 60];
+        if (t >= 2) { const a = Math.floor(t / 2); manchesDur = [a, t - a]; }
+        construireManches();
+      }
+      initialiserChrono();
+    });
 
     function majBoutonDemarrer() {
       const textes = { repos: ["play_arrow", "Démarrer"], depart: ["close", "Annuler"], course: ["pause", "Pause"], pause: ["play_arrow", "Reprendre"], fini: ["replay", "Relancer"] };
@@ -748,21 +794,23 @@
       arreterBoucle(); libererEcran();
       const r = lireReglages();
       $("blocManches").hidden = !r.sous;
+      $("blocTotal").hidden = r.sous;
       chrono.phase = "repos";
       chrono.totalMs = r.total * 1000;
       chrono.restantMs = chrono.totalMs;
-      chrono.manches = Math.max(1, Math.min(r.manches, Math.max(1, r.total)));
-      chrono.limites = Array.from({ length: chrono.manches + 1 }, (_, k) => Math.round(chrono.totalMs * k / chrono.manches));
+      chrono.manches = r.manches.length;
+      chrono.limites = [0];
+      r.manches.forEach(d => chrono.limites.push(chrono.limites[chrono.limites.length - 1] + d * 1000));
       chrono.mancheVue = 0; chrono.departVu = 0;
-      ecrireLocal("chronoReglages", JSON.stringify({ total: r.total, manches: r.manches, delai: r.delai, sous: r.sous }));
-      $("aideManches").textContent = r.sous && r.total > 0
-        ? (r.manches > r.total ? "Trop de manches pour cette durée." : "Chaque manche dure environ " + mm_ss(Math.round(r.total / r.manches)) + ".")
+      ecrireLocal("chronoReglages", JSON.stringify({ sous: r.sous, total: r.sous ? 0 : r.total, manchesDur: manchesDur, delai: r.delai }));
+      $("aideManches").textContent = r.sous
+        ? "Total : " + mm_ss(r.total) + " en " + r.manches.length + " manches." + (r.manches.some(d => d <= 0) ? " Chaque manche doit durer au moins 1 seconde." : "")
         : "";
       // repères sur la barre
       const barre = $("barre");
       barre.querySelectorAll(".repere").forEach(n => n.remove());
       for (let k = 1; k < chrono.manches; k++) {
-        const rep = el("div", "repere"); rep.style.left = (100 * k / chrono.manches) + "%"; barre.appendChild(rep);
+        const rep = el("div", "repere"); rep.style.left = (r.total ? 100 * chrono.limites[k] / chrono.totalMs : 0) + "%"; barre.appendChild(rep);
       }
       majBoutonDemarrer();
       rendre();
@@ -834,7 +882,7 @@
       if (chrono.phase === "repos") {
         const r = lireReglages();
         if (r.total <= 0) { statut("Entrez une durée supérieure à 0.", "erreur", 3000); return; }
-        if (r.manches > r.total) { statut("Trop de manches pour cette durée.", "erreur", 3000); return; }
+        if (r.manches.some(d => d <= 0)) { statut("Chaque manche doit durer au moins 1 seconde.", "erreur", 3000); return; }
         statut("");
         for (const k in pointsPartie) delete pointsPartie[k]; // nouvelle partie : compteurs à zéro
         afficherPanneauPoints();
@@ -851,7 +899,7 @@
       tic();
     });
     $("chronoReset").addEventListener("click", initialiserChrono);
-    ["chronoMin", "chronoSec", "chronoManches", "chronoDelai", "sousOn"].forEach(id => $(id).addEventListener("change", initialiserChrono));
+    ["chronoMin", "chronoSec", "chronoDelai"].forEach(id => $(id).addEventListener("change", initialiserChrono));
     document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
       const s = Number(b.dataset.preset);
       $("chronoMin").value = Math.floor(s / 60); $("chronoSec").value = s % 60;
@@ -863,14 +911,21 @@
       try {
         const r = JSON.parse(lireLocal("chronoReglages", "null"));
         if (r) {
-          $("chronoMin").value = Math.floor(r.total / 60); $("chronoSec").value = r.total % 60;
-          $("sousOn").checked = !!r.sous; $("chronoManches").value = r.manches > 1 ? r.manches : 2;
+          if (Array.isArray(r.manchesDur) && r.manchesDur.length >= 2) manchesDur = r.manchesDur.map(d => borne(d, 999 * 60 + 59)).slice(0, MAX_MANCHES);
+          else if (r.sous && typeof r.manches === "number" && r.manches >= 2 && r.total > 0) { // ancien format : manches égales
+            const n = Math.min(r.manches, MAX_MANCHES), base = Math.floor(r.total / n);
+            manchesDur = Array.from({ length: n }, (_, k) => k < n - 1 ? base : r.total - base * (n - 1));
+          }
+          const total = r.sous && !r.total ? manchesDur.reduce((a, d) => a + d, 0) : (r.total || 300);
+          $("chronoMin").value = Math.floor(total / 60); $("chronoSec").value = total % 60;
+          $("sousOn").checked = !!r.sous;
           $("chronoDelai").value = r.delai;
         }
       } catch (e) {}
     })();
     try { if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js"); } catch (e) {}
     majThemeInterface();
+    construireManches();
     initialiserChrono();
     route();
     charger(false);
