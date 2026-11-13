@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-title" content="Gasy-mal">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#d6264f">
   <title>Gasy-mal – Comptage de points</title>
   <!-- Applique le thème choisi tout de suite, pour éviter un flash blanc -->
   <script>
@@ -21,22 +21,22 @@
   <style>
     :root {
       color-scheme: light;
-      --fond: #f5f6fa; --carte: #ffffff; --texte: #1c1e26; --discret: #6b7080;
-      --bord: #e4e6ee; --accent: #4f46e5; --accent-texte: #ffffff;
-      --ok: #137333; --erreur: #c5221f; --rayon: 16px;
+      --fond: #f3f5fb; --carte: #ffffff; --texte: #1f1d36; --discret: #5b6482;
+      --bord: #dce1ee; --accent: #d6264f; --accent-texte: #ffffff; --secondaire: #4f6596;
+      --ok: #137333; --erreur: #a4161a; --rayon: 16px;
       --or: #d4a017; --argent: #8f98a8; --bronze: #b87333;
     }
     :root[data-theme="dark"] {
       color-scheme: dark;
-      --fond: #12131a; --carte: #1d1f29; --texte: #eceef5; --discret: #9aa0b4;
-      --bord: #2e3140; --accent: #7c75ff; --accent-texte: #101018; --ok: #3aa65e; --erreur: #ff8b85;
+      --fond: #14132a; --carte: #1f1d3a; --texte: #eef0fa; --discret: #a3a9c7;
+      --bord: #34325a; --accent: #e23b62; --accent-texte: #ffffff; --secondaire: #9db3e8; --ok: #3aa65e; --erreur: #ff9aa2;
       --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a;
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
         color-scheme: dark;
-        --fond: #12131a; --carte: #1d1f29; --texte: #eceef5; --discret: #9aa0b4;
-        --bord: #2e3140; --accent: #7c75ff; --accent-texte: #101018; --ok: #3aa65e; --erreur: #ff8b85;
+        --fond: #14132a; --carte: #1f1d3a; --texte: #eef0fa; --discret: #a3a9c7;
+        --bord: #34325a; --accent: #e23b62; --accent-texte: #ffffff; --secondaire: #9db3e8; --ok: #3aa65e; --erreur: #ff9aa2;
         --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a;
       }
     }
@@ -50,12 +50,12 @@
 
     /* ----- Icônes ----- */
     .material-symbols-rounded { font-size: 24px; line-height: 1; vertical-align: middle; user-select: none; visibility: hidden; }
-    html.icones-pretes .material-symbols-rounded { visibility: visible; }
+    html.icones-pretes .material-symbols-rounded { visibility: inherit; } /* suit le bouton parent (caché sur l'accueil) */
 
     /* ----- En-tête ----- */
-    #entete { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .5rem;
+    #entete { position: sticky; top: 0; z-index: 5; display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: .5rem;
               padding: calc(.6rem + env(safe-area-inset-top)) 1rem .6rem; background: var(--fond); }
-    #entete h1 { margin: 0; font-size: 1.25rem; text-align: center; }
+    #entete h1 { margin: 0; font-size: 1.25rem; text-align: left; padding-left: .3rem; }
     .actions-entete { display: flex; gap: .5rem; justify-content: flex-end; }
     .icone { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 0;
              border: 1px solid var(--bord); border-radius: 50%; background: var(--carte); color: var(--texte); cursor: pointer; }
@@ -83,7 +83,7 @@
                    border: 1px solid var(--bord); border-radius: var(--rayon); background: var(--carte);
                    color: var(--texte); cursor: pointer; }
     .menu .pastille { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 52px; height: 52px;
-                      border-radius: 14px; background: var(--fond); color: var(--accent); }
+                      border-radius: 14px; background: var(--fond); color: var(--secondaire); }
     .menu .pastille .material-symbols-rounded { font-size: 30px; }
     .menu strong { display: block; font-size: 1.15rem; }
     .menu .sous { color: var(--discret); font-size: .9rem; }
@@ -105,6 +105,7 @@
     .repere { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--fond); }
     .duo { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
     .gros + .gros { margin-top: .8rem; }
+    .duo > .gros + .gros { margin-top: 0; }
     .duo + .gros { margin-top: .8rem; }
     details { margin-top: 1.2rem; background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon); padding: .8rem 1rem; }
     summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: .5rem; }
@@ -367,7 +368,7 @@
       const sombre = themeEffectif() === "dark";
       $("themeIcone").textContent = sombre ? "light_mode" : "dark_mode"; // l'icône montre ce qu'on obtiendra
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.content = sombre ? "#12131a" : "#4f46e5";
+      if (meta) meta.content = sombre ? "#14132a" : "#d6264f";
     }
     $("themeBtn").addEventListener("click", () => {
       const nouveau = themeEffectif() === "dark" ? "light" : "dark";
