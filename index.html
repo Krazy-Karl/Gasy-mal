@@ -887,11 +887,15 @@
       note(660, 0, 0.4, 0.45, "triangle"); note(880, 0.22, 0.4, 0.45, "triangle"); note(1175, 0.44, 0.7, 0.45, "triangle");
       vibrer([200, 100, 200, 100, 200]);
     }
-    function sonFin()    { [880, 880, 880].forEach((f, i) => note(f, i * 0.4, 0.3, 0.45, "square")); note(1320, 1.3, 1, 0.4, "square"); vibrer([400, 150, 400, 150, 800]); } // fin : triple bip + note longue
+    function sonCompte(v) { note(v === 1 ? 1000 : v === 2 ? 850 : 700, 0, 0.14, 0.5, "triangle"); } // 3 dernières secondes : tic de plus en plus aigu
+    function sonFin() { // fin du chrono : alarme à deux tons qui dure environ 3 secondes
+      for (let k = 0; k < 8; k++) note(k % 2 ? 784 : 988, k * 0.36, 0.3, 0.5, "square");
+      vibrer([400, 150, 400, 150, 400, 150, 800]);
+    }
 
     // ---------- Chronomètre avec sous-chronomètre ----------
     // phases : repos, depart (compte à rebours de lancement), course, pause, fini
-    const chrono = { phase: "repos", totalMs: 0, restantMs: 0, fin: 0, depart: 0, manches: 1, limites: [0, 0], mancheVue: 0, departVu: 0, minuteur: null };
+    const chrono = { phase: "repos", totalMs: 0, restantMs: 0, fin: 0, depart: 0, manches: 1, limites: [0, 0], mancheVue: 0, departVu: 0, dernierBip: "", mancheRestant: 0, mancheDuree: 0, minuteur: null };
     let verrouEcran = null;
 
     async function garderEcran() { try { if ("wakeLock" in navigator && !verrouEcran) verrouEcran = await navigator.wakeLock.request("screen"); } catch (e) {} }
@@ -968,7 +972,7 @@
       chrono.manches = r.manches.length;
       chrono.limites = [0];
       r.manches.forEach(d => chrono.limites.push(chrono.limites[chrono.limites.length - 1] + d * 1000));
-      chrono.mancheVue = 0; chrono.departVu = 0;
+      chrono.mancheVue = 0; chrono.departVu = 0; chrono.dernierBip = "";
       ecrireLocal("chronoReglages", JSON.stringify({ sous: r.sous, total: r.sous ? 0 : r.total, manchesDur: manchesDur, delai: r.delai }));
       $("aideManches").textContent = r.sous
         ? "Total : " + mm_ss(r.total) + " en " + r.manches.length + " manches." + (r.manches.some(d => d <= 0) ? " Chaque manche doit durer au moins 1 seconde." : "")
@@ -1002,6 +1006,7 @@
       const ecoule = T - restant;
       let i = 0; while (i < N - 1 && ecoule >= chrono.limites[i + 1]) i++;
       const resteManche = chrono.limites[i + 1] - ecoule;
+      chrono.mancheRestant = resteManche; chrono.mancheDuree = chrono.limites[i + 1] - chrono.limites[i];
       grand.textContent = mm_ss(Math.ceil((N > 1 ? resteManche : restant) / 1000));
       if (chrono.phase === "fini") grand.classList.add("fini");
       const derniere = N > 1 && i === N - 1 && chrono.phase !== "fini" && chrono.phase !== "repos";
@@ -1035,6 +1040,13 @@
           if (vueActuelle !== "partie") statut("Temps écoulé !", "ok", 6000);
         } else if (i > chrono.mancheVue) {
           chrono.mancheVue = i; sonManche();
+        } else {
+          // 3, 2, 1 : un tic au moment où le chiffre affiché change (pas pour une manche trop courte)
+          const v = Math.ceil(chrono.mancheRestant / 1000);
+          if (v >= 1 && v <= 3 && v * 1000 < chrono.mancheDuree) {
+            const cle = i + ":" + v;
+            if (cle !== chrono.dernierBip) { chrono.dernierBip = cle; sonCompte(v); }
+          }
         }
       }
     }
@@ -1054,7 +1066,7 @@
         if (r.total <= 0) { statut("Entrez une durée supérieure à 0.", "erreur", 3000); return; }
         if (r.manches.some(d => d <= 0)) { statut("Chaque manche doit durer au moins 1 seconde.", "erreur", 3000); return; }
         statut("");
-        chrono.mancheVue = 0; chrono.departVu = 0;
+        chrono.mancheVue = 0; chrono.departVu = 0; chrono.dernierBip = "";
         if (r.delai > 0) { chrono.phase = "depart"; chrono.depart = Date.now() + r.delai * 1000; }
         else { chrono.phase = "course"; chrono.fin = Date.now() + chrono.restantMs; sonGo(); }
       } else { // reprise après pause
