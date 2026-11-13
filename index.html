@@ -125,6 +125,10 @@
     .pas { display: flex; align-items: center; gap: .4rem; }
     .pas input { width: 4.4rem; min-width: 0; text-align: center; font-weight: 700; font-size: 1.2rem; padding: .4rem .2rem; }
     .resume-fin { text-align: center; color: var(--discret); margin: 1rem 0; }
+    .gros.danger { background: var(--erreur); color: #fff; }
+    #confTexte { margin: .6rem 0 1rem; }
+    #confLignes { margin: .8rem 0; }
+    #confLignes li { padding: .6rem 1rem; }
     .aide { color: var(--discret); font-size: .85rem; margin: .3rem 0 0; }
 
     /* ----- Points en pleine partie ----- */
@@ -299,6 +303,17 @@
 
   <p id="statut" role="status" hidden></p>
 
+  <!-- Fenêtre de confirmation (remplace celle du navigateur) -->
+  <dialog id="confirmation" aria-labelledby="confTitre">
+    <h3 id="confTitre"></h3>
+    <ul id="confLignes" class="carte-liste" hidden></ul>
+    <p id="confTexte" class="aide" hidden></p>
+    <div class="duo">
+      <button type="button" id="confNon" class="gros secondaire">Annuler</button>
+      <button type="button" id="confOui" class="gros">Confirmer</button>
+    </div>
+  </dialog>
+
   <!-- Feuille du bas : nouveau joueur / ajout de points -->
   <dialog id="feuille">
     <form id="formulaire" method="dialog">
@@ -339,6 +354,33 @@
     let ecrituresEnCours = 0;        // enregistrements en attente de confirmation de Google
     const suppressionsEnAttente = new Set();
     let compteurTmp = 0;
+
+    // ---------- Fenêtre de confirmation de l'appli ----------
+    // confirmer({ titre, texte, lignes: [[nom, valeur, classe?]], oui, danger }) -> Promise<true | false>
+    function confirmer(opt) {
+      return new Promise(resolve => {
+        const d = $("confirmation");
+        $("confTitre").textContent = opt.titre;
+        $("confTexte").textContent = opt.texte || ""; $("confTexte").hidden = !opt.texte;
+        const ul = $("confLignes"); ul.textContent = ""; ul.hidden = !(opt.lignes && opt.lignes.length);
+        (opt.lignes || []).forEach(([nom, valeur, classe]) => {
+          const li = el("li");
+          li.appendChild(el("span", "nom", nom));
+          li.appendChild(el("span", "score " + (classe || ""), valeur));
+          ul.appendChild(li);
+        });
+        $("confOui").textContent = opt.oui || "Confirmer";
+        $("confOui").classList.toggle("danger", !!opt.danger);
+        let fini = false;
+        const clore = reponse => { if (fini) return; fini = true; if (d.open) d.close(); resolve(reponse); };
+        $("confOui").onclick = () => clore(true);
+        $("confNon").onclick = () => clore(false);
+        d.onclick = ev => { if (ev.target === d) clore(false); };
+        d.onclose = () => clore(false); // touche Retour du téléphone ou Échap
+        d.showModal();
+        $("confNon").focus();
+      });
+    }
 
     // ---------- Petits outils ----------
     let minuteurStatut;
@@ -607,10 +649,15 @@
         const b = el("button", "suppr");
         b.appendChild(icone("delete"));
         b.setAttribute("aria-label", "Supprimer cette ligne");
-        b.addEventListener("click", () => {
+        b.addEventListener("click", async () => {
           if (l.enAttente) { statut("Enregistrement en cours, réessayez dans un instant.", "", 2000); return; }
-          if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + signe(l.points)))
-            ecrire({ action: "supprimer", id: l.id }, { supprime: l });
+          const oui = await confirmer({
+            titre: "Supprimer cette ligne ?",
+            lignes: [[l.joueur, signe(l.points), l.points >= 0 ? "positif" : "negatif"]],
+            texte: "Saisie du " + dateCourte(l.date) + ". La suppression est définitive.",
+            oui: "Supprimer", danger: true
+          });
+          if (oui) ecrire({ action: "supprimer", id: l.id }, { supprime: l });
         });
         li.appendChild(b);
         if (l.enAttente) li.style.opacity = ".55"; // en cours d'enregistrement
@@ -790,7 +837,14 @@
       const gains = Object.entries(saisieFin).filter(([, n]) => n !== 0).map(([joueur, points]) => ({ joueur, points }));
       if (!gains.length) { statut("Aucun point à enregistrer.", "erreur", 3000); return; }
       if (gains.some(g => !Number.isInteger(g.points) || Math.abs(g.points) > 1000)) { statut("Les points doivent être des nombres entiers (entre -1000 et 1000).", "erreur", 4000); return; }
-      if (!confirm("Enregistrer ces points ?\n\n" + gains.map(g => g.joueur + " : " + signe(g.points)).join("\n"))) return;
+      const total = gains.reduce((a, g) => a + g.points, 0);
+      const oui = await confirmer({
+        titre: "Enregistrer ces points ?",
+        lignes: gains.map(g => [g.joueur, signe(g.points), g.points >= 0 ? "positif" : "negatif"]),
+        texte: gains.length + " joueur" + (gains.length > 1 ? "s" : "") + " · total " + signe(total) + " pt" + (Math.abs(total) > 1 ? "s" : ""),
+        oui: "Enregistrer"
+      });
+      if (!oui) return;
       const sauvegarde = Object.assign({}, pointsPartie);
       for (const k in pointsPartie) delete pointsPartie[k];
       sauverCompteur(); afficherPanneauPoints();
