@@ -92,6 +92,11 @@
     .menu .principal .sous { color: inherit; opacity: .85; }
 
     /* ----- Chrono ----- */
+    /* L'écran de partie occupe toute la hauteur : le chrono est centré, les boutons restent en bas */
+    #vue-partie:not([hidden]) { display: flex; flex-direction: column; min-height: calc(100vh - 6.5rem); min-height: calc(100dvh - 6.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+    body[data-vue="partie"] main { padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+    .zone-chrono { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 1rem 0; }
+    .zone-chrono .etiquette { margin-top: 0; }
     .etiquette { text-align: center; color: var(--discret); margin-top: 1.5rem; font-size: 1.1rem; }
     #affichageChrono { font-size: clamp(4.5rem, 24vw, 8rem); font-weight: 700; text-align: center; line-height: 1.1;
                        font-variant-numeric: tabular-nums; margin: .4rem 0 .6rem; }
@@ -207,10 +212,12 @@
 
     <!-- PARTIE : chronomètre + points en direct -->
     <section id="vue-partie" class="vue" hidden>
-      <div id="etiquetteChrono" class="etiquette">Chronomètre</div>
-      <div id="affichageChrono">05:00</div>
-      <div id="infoTotal" hidden>Temps total restant : <b id="totalChrono">10:00</b></div>
-      <div id="barre" class="barre-chrono" hidden><div id="barreRemplie"></div></div>
+      <div class="zone-chrono">
+        <div id="etiquetteChrono" class="etiquette">Chronomètre</div>
+        <div id="affichageChrono">05:00</div>
+        <div id="infoTotal" hidden>Temps total restant : <b id="totalChrono">10:00</b></div>
+        <div id="barre" class="barre-chrono" hidden><div id="barreRemplie"></div></div>
+      </div>
 
       <div class="duo">
         <button id="chronoDemarrer" class="gros"></button>
@@ -409,6 +416,7 @@
 
     function afficherVue(nom) {
       vueActuelle = nom;
+      document.body.dataset.vue = nom;
       document.querySelectorAll(".vue").forEach(v => { v.hidden = v.id !== "vue-" + nom; });
       $("titre").textContent = TITRES[nom];
       $("retour").hidden = nom === "accueil";
