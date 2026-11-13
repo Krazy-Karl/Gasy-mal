@@ -133,6 +133,7 @@
     #confTexte { margin: .6rem 0 1rem; }
     #confLignes { margin: .8rem 0; }
     #confLignes li { padding: .6rem 1rem; }
+    input[type=range] { padding: 0; border: 0; background: none; accent-color: var(--accent); min-height: 40px; }
     .aide { color: var(--discret); font-size: .85rem; margin: .3rem 0 0; }
 
     /* ----- Points en pleine partie ----- */
@@ -269,6 +270,10 @@
         <label class="champ">Compte à rebours avant le départ (secondes, 0 = aucun)
           <input id="chronoDelai" type="number" inputmode="numeric" min="0" max="10" value="3">
         </label>
+        <label class="champ">Volume des sons : <b id="volumeTexte">250 %</b>
+          <input id="volumeSons" type="range" min="100" max="300" step="25" value="250">
+        </label>
+        <button type="button" id="testerSon" class="puce"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span> Tester le son</button>
       </details>
     </section>
 
@@ -862,36 +867,62 @@
     });
 
     // ---------- Sons ----------
-    let ctxAudio = null;
+    // Pour qu'on entende bien en groupe : notes aiguës (les haut-parleurs de téléphone restituent mal les graves),
+    // forme d'onde riche, son tenu à plein volume, amplification réglable et limiteur pour éviter la distorsion.
+    let ctxAudio = null, sortieAudio = null;
+    let volumeSons = (Number(lireLocal("volumeSons", "250")) || 250) / 100; // 1 = normal, 3 = maximum
+
     function audio() {
       try {
-        if (!ctxAudio) ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+        if (!ctxAudio) {
+          ctxAudio = new (window.AudioContext || window.webkitAudioContext)();
+          sortieAudio = ctxAudio.createGain();
+          const limiteur = ctxAudio.createDynamicsCompressor();
+          limiteur.threshold.value = -8; limiteur.knee.value = 4; limiteur.ratio.value = 20;
+          limiteur.attack.value = 0.002; limiteur.release.value = 0.12;
+          sortieAudio.connect(limiteur); limiteur.connect(ctxAudio.destination);
+          sortieAudio.gain.value = volumeSons;
+        }
         if (ctxAudio.state === "suspended") ctxAudio.resume();
       } catch (e) {}
       return ctxAudio;
     }
     function note(freq, debut, duree, volume, type) {
-      const c = audio(); if (!c) return;
+      const c = audio(); if (!c || !sortieAudio) return;
       const o = c.createOscillator(), g = c.createGain();
-      o.type = type || "sine"; o.frequency.value = freq; o.connect(g); g.connect(c.destination);
-      const t = c.currentTime + debut;
-      g.gain.setValueAtTime(volume || 0.35, t);
+      o.type = type || "square"; o.frequency.value = freq; o.connect(g); g.connect(sortieAudio);
+      const t = c.currentTime + debut, v = volume || 0.8;
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.exponentialRampToValueAtTime(v, t + 0.006);              // attaque courte, sans "clic"
+      g.gain.setValueAtTime(v, t + duree * 0.7);                      // son tenu à plein volume
       g.gain.exponentialRampToValueAtTime(0.001, t + duree);
       o.start(t); o.stop(t + duree + 0.05);
     }
     function vibrer(motif) { try { if (navigator.vibrate) navigator.vibrate(motif); } catch (e) {} }
     // Quatre sons bien différents :
-    function sonTick()   { note(500, 0, 0.12, 0.3); }                                  // compte à rebours : tic grave et court
-    function sonGo()     { note(1000, 0, 0.7, 0.4); note(1500, 0, 0.7, 0.25); vibrer(200); } // départ : note aiguë et longue
-    function sonManche() { // fin de manche : carillon montant (3 notes), bien distinct des bips de la fin
-      note(660, 0, 0.4, 0.45, "triangle"); note(880, 0.22, 0.4, 0.45, "triangle"); note(1175, 0.44, 0.7, 0.45, "triangle");
+    function sonTick()   { note(800, 0, 0.14, 0.8); }                                                    // compte à rebours de départ : tic court
+    function sonGo()     { note(1319, 0, 0.8, 0.9); note(1976, 0, 0.8, 0.5); vibrer(200); }              // départ : note aiguë et longue
+    function sonManche() { // fin de manche : carillon montant (3 notes)
+      note(988, 0, 0.35, 0.9); note(1319, 0.25, 0.35, 0.9); note(1760, 0.5, 0.8, 0.9);
       vibrer([200, 100, 200, 100, 200]);
     }
-    function sonCompte(v) { note(v === 1 ? 1000 : v === 2 ? 850 : 700, 0, 0.14, 0.5, "triangle"); } // 3 dernières secondes : tic de plus en plus aigu
-    function sonFin() { // fin du chrono : alarme à deux tons qui dure environ 3 secondes
-      for (let k = 0; k < 8; k++) note(k % 2 ? 784 : 988, k * 0.36, 0.3, 0.5, "square");
+    function sonCompte(v) { note(v === 1 ? 1760 : v === 2 ? 1480 : 1245, 0, 0.18, 0.9); }                // 3 dernières secondes : tic de plus en plus aigu
+    function sonFin() { // fin du chrono : alarme à deux tons d'environ 3 secondes
+      for (let k = 0; k < 8; k++) note(k % 2 ? 1397 : 1865, k * 0.36, 0.33, 1);
       vibrer([400, 150, 400, 150, 400, 150, 800]);
     }
+
+    $("volumeSons").value = Math.round(volumeSons * 100);
+    $("volumeTexte").textContent = Math.round(volumeSons * 100) + " %";
+    $("volumeSons").addEventListener("input", () => {
+      volumeSons = Number($("volumeSons").value) / 100;
+      $("volumeTexte").textContent = Math.round(volumeSons * 100) + " %";
+      if (sortieAudio) sortieAudio.gain.value = volumeSons;
+      ecrireLocal("volumeSons", $("volumeSons").value);
+    });
+    $("testerSon").addEventListener("click", () => { // un tic puis le carillon, pour régler le volume
+      audio(); sonCompte(1); setTimeout(sonManche, 700);
+    });
 
     // ---------- Chronomètre avec sous-chronomètre ----------
     // phases : repos, depart (compte à rebours de lancement), course, pause, fini
