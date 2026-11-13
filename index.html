@@ -305,7 +305,9 @@
     let lignes = [];
     let saisonChoisie = null;
     let derniereMaj = 0;
-    let seqEnvoi = 0;
+    let ecrituresEnCours = 0;        // enregistrements en attente de confirmation de Google
+    const suppressionsEnAttente = new Set();
+    let compteurTmp = 0;
 
     // ---------- Petits outils ----------
     let minuteurStatut;
@@ -436,25 +438,62 @@
     async function charger(discret) {
       if (discret && Date.now() - derniereMaj < 20000) return; // évite de surcharger le script
       if (!discret) statut("Chargement…");
-      const n = seqEnvoi;
       try {
         const donnees = await appeler();
-        if (n === seqEnvoi) { lignes = donnees.lignes; derniereMaj = Date.now(); afficher(); }
+        // Pendant un enregistrement, on ignore cette lecture pour ne pas écraser l'affichage immédiat
+        if (ecrituresEnCours === 0) { appliquerServeur(donnees.lignes); derniereMaj = Date.now(); afficher(); }
         if (!discret) statut("");
       } catch (e) { statut(e.message, "erreur"); }
     }
     $("actualiser").addEventListener("click", () => { derniereMaj = 0; charger(false); });
 
-    async function envoyer(corps, messageOk) {
-      const n = ++seqEnvoi;
-      if (messageOk) statut("Enregistrement…");
+    // Remplace les données par celles du serveur, en gardant ce qui est encore en cours d'enregistrement
+    function appliquerServeur(lignesServeur) {
+      lignes = lignesServeur.filter(l => !suppressionsEnAttente.has(l.id)).concat(lignes.filter(l => l.enAttente));
+    }
+    function maintenantTexte() {
+      const d = new Date(), n = x => String(x).padStart(2, "0");
+      return d.getFullYear() + "-" + n(d.getMonth() + 1) + "-" + n(d.getDate()) + " " + n(d.getHours()) + ":" + n(d.getMinutes());
+    }
+
+    // Affichage immédiat, puis confirmation par Google en arrière-plan.
+    // En cas d'échec, on annule ce qui a été affiché et on explique pourquoi.
+    async function ecrire(corps, local) {
+      ecrituresEnCours++;
+      let index = -1;
+      if (local.ajoute) lignes.push(local.ajoute);
+      if (local.supprime) {
+        index = lignes.findIndex(l => l.id === local.supprime.id);
+        if (index >= 0) lignes.splice(index, 1);
+        suppressionsEnAttente.add(local.supprime.id);
+      }
+      afficher();
       try {
         // Pas d'en-tête Content-Type : évite un blocage de sécurité du navigateur (CORS)
         const donnees = await appeler({ method: "POST", body: JSON.stringify(corps) });
-        if (n === seqEnvoi) { lignes = donnees.lignes; derniereMaj = Date.now(); afficher(); }
-        if (messageOk) statut(messageOk, "ok", 2500);
+        if (local.ajoute) {
+          lignes = lignes.filter(l => l !== local.ajoute);
+          if (donnees.ligne) { if (!lignes.some(l => l.id === donnees.ligne.id)) lignes.push(donnees.ligne); }
+        }
+        if (local.supprime) suppressionsEnAttente.delete(local.supprime.id);
+        if (donnees.lignes) appliquerServeur(donnees.lignes); // ancienne version du script : renvoie toute la liste
+        derniereMaj = Date.now();
+        afficher();
         return true;
-      } catch (e) { statut(e.message, "erreur"); return false; }
+      } catch (e) {
+        if (local.ajoute) lignes = lignes.filter(l => l !== local.ajoute);
+        if (local.supprime) {
+          suppressionsEnAttente.delete(local.supprime.id);
+          if (index >= 0) lignes.splice(index, 0, local.supprime); else lignes.push(local.supprime);
+        }
+        afficher();
+        statut(e.message, "erreur");
+        return false;
+      } finally { ecrituresEnCours--; }
+    }
+
+    function nouvelleLigne(joueur, points) {
+      return { id: "tmp-" + (++compteurTmp), date: maintenantTexte(), saison: moisCourant(), joueur, points, enAttente: true };
     }
 
     // ---------- Calculs ----------
@@ -517,10 +556,12 @@
         b.appendChild(icone("delete"));
         b.setAttribute("aria-label", "Supprimer cette ligne");
         b.addEventListener("click", () => {
+          if (l.enAttente) { statut("Enregistrement en cours, réessayez dans un instant.", "", 2000); return; }
           if (confirm("Supprimer cette ligne ?\n" + l.joueur + " : " + signe(l.points)))
-            envoyer({ action: "supprimer", id: l.id }, "Ligne supprimée.");
+            ecrire({ action: "supprimer", id: l.id }, { supprime: l });
         });
         li.appendChild(b);
+        if (l.enAttente) li.style.opacity = ".55"; // en cours d'enregistrement
         histo.appendChild(li);
       });
     }
@@ -570,20 +611,16 @@
       const nouveau = !$("champNom").hidden;
       const nom = $("fNom").value.trim();
       if (!nom) { statut("Entrez le nom du joueur.", "erreur", 3000); return; }
-      let corps, message;
       if (nouveau) {
-        corps = { action: "creerJoueur", joueur: nom };
-        message = nom + " a été ajouté.";
+        if (nomsJoueurs().some(n => n.toLowerCase() === nom.toLowerCase())) { statut("Ce joueur existe déjà.", "erreur", 3000); return; }
+        $("feuille").close();
+        ecrire({ action: "creerJoueur", joueur: nom }, { ajoute: nouvelleLigne(nom, 0) });
       } else {
         const points = Number($("fPoints").value);
         if (!points || !Number.isInteger(points)) { statut("Entrez un nombre de points entier, différent de zéro.", "erreur", 3000); return; }
-        corps = { action: "ajouter", joueur: nom, points };
-        message = signe(points) + " pour " + nom;
+        $("feuille").close();
+        ecrire({ action: "ajouter", joueur: nom, points }, { ajoute: nouvelleLigne(nom, points) });
       }
-      $("fValider").disabled = true;
-      const reussi = await envoyer(corps, message);
-      $("fValider").disabled = false;
-      if (reussi) $("feuille").close();
     });
     $("feuille").addEventListener("click", ev => { if (ev.target === $("feuille")) $("feuille").close(); });
 
@@ -627,7 +664,7 @@
     async function pointRapide(joueur, delta) {
       pointsPartie[joueur] = (pointsPartie[joueur] || 0) + delta;
       afficherPanneauPoints();
-      const ok = await envoyer({ action: "ajouter", joueur, points: delta }, null);
+      const ok = await ecrire({ action: "ajouter", joueur, points: delta }, { ajoute: nouvelleLigne(joueur, delta) });
       if (!ok) { pointsPartie[joueur] -= delta; afficherPanneauPoints(); }
     }
 

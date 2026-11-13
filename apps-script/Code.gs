@@ -47,17 +47,15 @@ function doPost(e) {
       if (!isFinite(points) || points === 0 || Math.abs(points) > POINTS_MAX) {
         return reponse({ ok: false, erreur: "Les points doivent être un nombre non nul (entre -" + POINTS_MAX + " et " + POINTS_MAX + ")." });
       }
-      ajouterLigne(joueur, points);
-      return reponse({ ok: true, lignes: lireLignes() });
+      // On renvoie seulement la ligne écrite (plus rapide que de relire toute la feuille)
+      return reponse({ ok: true, ligne: ajouterLigne(joueur, points) });
     }
 
     if (d.action === "creerJoueur") {
       const joueur = nettoyer(d.joueur);
       if (!joueur) return reponse({ ok: false, erreur: "Le nom du joueur est obligatoire." });
-      const existe = lireLignes().some(l => l.joueur.toLowerCase() === joueur.toLowerCase());
-      if (existe) return reponse({ ok: false, erreur: "Ce joueur existe déjà." });
-      ajouterLigne(joueur, 0);
-      return reponse({ ok: true, lignes: lireLignes() });
+      if (joueurExiste(joueur)) return reponse({ ok: false, erreur: "Ce joueur existe déjà." });
+      return reponse({ ok: true, ligne: ajouterLigne(joueur, 0) });
     }
 
     if (d.action === "supprimer") {
@@ -67,7 +65,7 @@ function doPost(e) {
       const i = ids.indexOf(String(d.id));
       if (i === -1) return reponse({ ok: false, erreur: "Cette ligne n'existe plus (déjà supprimée ?)." });
       f.deleteRow(i + 2);
-      return reponse({ ok: true, lignes: lireLignes() });
+      return reponse({ ok: true, id: String(d.id) });
     }
 
     return reponse({ ok: false, erreur: "Action inconnue." });
@@ -80,20 +78,37 @@ function doPost(e) {
 
 // ---------- Fonctions utilitaires ----------
 
+// Écrit une ligne et renvoie ce qui a été écrit (sans relire la feuille)
 function ajouterLigne(joueur, points) {
   const maintenant = new Date();
   const tz = Session.getScriptTimeZone();
-  feuille().appendRow([
-    Utilities.getUuid(),
-    Utilities.formatDate(maintenant, tz, "yyyy-MM-dd HH:mm"),
-    Utilities.formatDate(maintenant, tz, "yyyy-MM"),
-    joueur, points
-  ]);
+  const ligne = {
+    id: Utilities.getUuid(),
+    date: Utilities.formatDate(maintenant, tz, "yyyy-MM-dd HH:mm"),
+    saison: Utilities.formatDate(maintenant, tz, "yyyy-MM"),
+    joueur: joueur,
+    points: points
+  };
+  feuille().appendRow([ligne.id, ligne.date, ligne.saison, ligne.joueur, ligne.points]);
+  return ligne;
 }
 
+// Lit seulement la colonne des noms (rapide)
+function joueurExiste(nom) {
+  const f = feuille();
+  const n = f.getLastRow();
+  if (n < 2) return false;
+  const col = ancienneDisposition(f) ? 5 : 4;
+  const bas = nom.toLowerCase();
+  return f.getRange(2, col, n - 1, 1).getValues().some(l => String(l[0]).toLowerCase() === bas);
+}
+
+let _feuille = null; // mémorisée pendant une même exécution
 function feuille() {
+  if (_feuille) return _feuille;
   const f = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(NOM_FEUILLE);
   if (!f) throw new Error("La feuille \"" + NOM_FEUILLE + "\" est introuvable. Lancez la fonction initialiser().");
+  _feuille = f;
   return f;
 }
 
