@@ -146,7 +146,7 @@
     .score { font-size: 1.5rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
     .score small { display: block; font-size: .75rem; font-weight: 400; color: var(--discret); }
     .vide { color: var(--discret); text-align: center; padding: 1.5rem 1rem !important; display: block !important; }
-    .ligne-joueur { width: 100%; border: 0; background: none; color: inherit; text-align: left; cursor: pointer;
+    .ligne-joueur { flex: 1; min-width: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer;
                     display: flex; align-items: center; gap: .8rem; min-height: 64px; padding: .5rem 1rem; }
     .plus { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px;
             border-radius: 50%; background: var(--accent); color: var(--accent-texte); }
@@ -461,6 +461,12 @@
     async function ecrire(corps, local) {
       ecrituresEnCours++;
       let index = -1;
+      const renommees = [];
+      if (local.renomme) {
+        const { ancien, nouveau } = local.renomme;
+        lignes.forEach(l => { if (l.joueur === ancien) { l.joueur = nouveau; renommees.push(l); } });
+        if (pointsPartie[ancien] !== undefined) { pointsPartie[nouveau] = (pointsPartie[nouveau] || 0) + pointsPartie[ancien]; delete pointsPartie[ancien]; }
+      }
       if (local.ajoute) lignes.push(local.ajoute);
       if (local.supprime) {
         index = lignes.findIndex(l => l.id === local.supprime.id);
@@ -481,6 +487,11 @@
         afficher();
         return true;
       } catch (e) {
+        if (local.renomme) {
+          const { ancien, nouveau } = local.renomme;
+          renommees.forEach(l => { l.joueur = ancien; });
+          if (pointsPartie[nouveau] !== undefined) { pointsPartie[ancien] = (pointsPartie[ancien] || 0) + pointsPartie[nouveau]; delete pointsPartie[nouveau]; }
+        }
         if (local.ajoute) lignes = lignes.filter(l => l !== local.ajoute);
         if (local.supprime) {
           suppressionsEnAttente.delete(local.supprime.id);
@@ -582,25 +593,32 @@
         b.appendChild(n);
         const plus = el("span", "plus"); plus.appendChild(icone("add"));
         b.appendChild(plus);
-        b.addEventListener("click", () => ouvrirFeuille(nom));
+        b.addEventListener("click", () => ouvrirFeuille("points", nom));
         li.appendChild(b);
+        const crayon = el("button", "suppr");
+        crayon.appendChild(icone("edit"));
+        crayon.setAttribute("aria-label", "Renommer " + nom);
+        crayon.addEventListener("click", () => ouvrirFeuille("renommer", nom));
+        li.appendChild(crayon);
         liste.appendChild(li);
       });
     }
 
     // ---------- Feuille du bas : nouveau joueur / points ----------
-    function ouvrirFeuille(joueur) {
-      const nouveau = !joueur;
-      $("feuilleTitre").textContent = nouveau ? "Nouveau joueur" : "Points pour " + joueur;
-      $("champNom").hidden = !nouveau;
-      $("blocPoints").hidden = nouveau;
-      $("fNom").value = joueur || "";
-      $("fNom").required = nouveau;
+    let feuilleMode = "nouveau", feuilleJoueur = "";
+    function ouvrirFeuille(mode, joueur) {
+      feuilleMode = mode; feuilleJoueur = joueur || "";
+      $("feuilleTitre").textContent = mode === "nouveau" ? "Nouveau joueur" : mode === "renommer" ? "Renommer " + joueur : "Points pour " + joueur;
+      $("champNom").hidden = mode === "points";
+      $("blocPoints").hidden = mode !== "points";
+      $("fNom").value = mode === "renommer" ? joueur : "";
+      $("fNom").required = mode !== "points";
       $("fPoints").value = "";
       $("feuille").showModal();
-      (nouveau ? $("fNom") : $("fPoints")).focus();
+      (mode === "points" ? $("fPoints") : $("fNom")).focus();
+      if (mode === "renommer") $("fNom").select();
     }
-    $("nouveauJoueur").addEventListener("click", () => ouvrirFeuille(null));
+    $("nouveauJoueur").addEventListener("click", () => ouvrirFeuille("nouveau"));
     $("fAnnuler").addEventListener("click", () => $("feuille").close());
     document.querySelectorAll("[data-delta]").forEach(b => b.addEventListener("click", () => {
       $("fPoints").value = (Number($("fPoints").value) || 0) + Number(b.dataset.delta);
@@ -608,10 +626,15 @@
 
     $("formulaire").addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      const nouveau = !$("champNom").hidden;
       const nom = $("fNom").value.trim();
-      if (!nom) { statut("Entrez le nom du joueur.", "erreur", 3000); return; }
-      if (nouveau) {
+      if (feuilleMode !== "points" && !nom) { statut("Entrez le nom du joueur.", "erreur", 3000); return; }
+      if (feuilleMode === "renommer") {
+        if (nom === feuilleJoueur) { $("feuille").close(); return; }
+        const autre = nomsJoueurs().some(n => n.toLowerCase() === nom.toLowerCase() && n.toLowerCase() !== feuilleJoueur.toLowerCase());
+        if (autre) { statut("Ce nom est déjà utilisé par un autre joueur.", "erreur", 3000); return; }
+        $("feuille").close();
+        ecrire({ action: "renommer", ancien: feuilleJoueur, nouveau: nom }, { renomme: { ancien: feuilleJoueur, nouveau: nom } });
+      } else if (feuilleMode === "nouveau") {
         if (nomsJoueurs().some(n => n.toLowerCase() === nom.toLowerCase())) { statut("Ce joueur existe déjà.", "erreur", 3000); return; }
         $("feuille").close();
         ecrire({ action: "creerJoueur", joueur: nom }, { ajoute: nouvelleLigne(nom, 0) });
@@ -619,7 +642,7 @@
         const points = Number($("fPoints").value);
         if (!points || !Number.isInteger(points)) { statut("Entrez un nombre de points entier, différent de zéro.", "erreur", 3000); return; }
         $("feuille").close();
-        ecrire({ action: "ajouter", joueur: nom, points }, { ajoute: nouvelleLigne(nom, points) });
+        ecrire({ action: "ajouter", joueur: feuilleJoueur, points }, { ajoute: nouvelleLigne(feuilleJoueur, points) });
       }
     });
     $("feuille").addEventListener("click", ev => { if (ev.target === $("feuille")) $("feuille").close(); });

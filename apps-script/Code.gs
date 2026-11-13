@@ -58,6 +58,27 @@ function doPost(e) {
       return reponse({ ok: true, ligne: ajouterLigne(joueur, 0) });
     }
 
+    if (d.action === "renommer") {
+      const ancien = nettoyer(d.ancien), nouveau = nettoyer(d.nouveau);
+      if (!ancien || !nouveau) return reponse({ ok: false, erreur: "Le nom du joueur est obligatoire." });
+      const f = feuille();
+      const n = f.getLastRow();
+      if (n < 2) return reponse({ ok: false, erreur: "Joueur introuvable." });
+      const plage = f.getRange(2, ancienneDisposition(f) ? 5 : 4, n - 1, 1);
+      const noms = plage.getValues();
+      const basAncien = ancien.toLowerCase(), basNouveau = nouveau.toLowerCase();
+      let trouves = 0, conflit = false;
+      noms.forEach(function (l) {
+        const v = String(l[0]).toLowerCase();
+        if (v === basAncien) trouves++;
+        else if (v === basNouveau) conflit = true;
+      });
+      if (!trouves) return reponse({ ok: false, erreur: "Joueur introuvable (déjà renommé ou supprimé ?)." });
+      if (conflit) return reponse({ ok: false, erreur: "Ce nom est déjà utilisé par un autre joueur." });
+      plage.setValues(noms.map(l => String(l[0]).toLowerCase() === basAncien ? [nouveau] : l));
+      return reponse({ ok: true, ancien: ancien, nouveau: nouveau });
+    }
+
     if (d.action === "supprimer") {
       const f = feuille();
       const n = f.getLastRow();
