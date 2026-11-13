@@ -24,20 +24,20 @@
       --fond: #f3f5fb; --carte: #ffffff; --texte: #1f1d36; --discret: #5b6482;
       --bord: #dce1ee; --accent: #d6264f; --accent-texte: #ffffff; --secondaire: #4f6596;
       --ok: #137333; --erreur: #a4161a; --rayon: 16px;
-      --or: #d4a017; --argent: #8f98a8; --bronze: #b87333;
+      --or: #d4a017; --argent: #8f98a8; --bronze: #b87333; --derniere: #e8590c;
     }
     :root[data-theme="dark"] {
       color-scheme: dark;
       --fond: #14132a; --carte: #1f1d3a; --texte: #eef0fa; --discret: #a3a9c7;
       --bord: #34325a; --accent: #e23b62; --accent-texte: #ffffff; --secondaire: #9db3e8; --ok: #3aa65e; --erreur: #ff9aa2;
-      --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a;
+      --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a; --derniere: #ffa94d;
     }
     @media (prefers-color-scheme: dark) {
       :root:not([data-theme="light"]) {
         color-scheme: dark;
         --fond: #14132a; --carte: #1f1d3a; --texte: #eef0fa; --discret: #a3a9c7;
         --bord: #34325a; --accent: #e23b62; --accent-texte: #ffffff; --secondaire: #9db3e8; --ok: #3aa65e; --erreur: #ff9aa2;
-        --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a;
+        --or: #f2c14e; --argent: #b5bccb; --bronze: #d9915a; --derniere: #ffa94d;
       }
     }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -102,6 +102,9 @@
                        font-variant-numeric: tabular-nums; margin: .4rem 0 .6rem; }
     #affichageChrono.fini { color: var(--erreur); animation: clignote 1s steps(2) infinite; }
     #affichageChrono.depart { color: var(--accent); }
+    #affichageChrono.derniere { color: var(--derniere); }
+    #etiquetteChrono.derniere { color: var(--derniere); font-weight: 700; }
+    #barre.derniere #barreRemplie { background: var(--derniere); }
     @keyframes clignote { 50% { opacity: .25; } }
     #infoTotal { text-align: center; color: var(--discret); margin-bottom: .6rem; }
     #infoTotal b { color: var(--texte); font-variant-numeric: tabular-nums; }
@@ -111,6 +114,7 @@
     .duo { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
     .gros + .gros { margin-top: .8rem; }
     .duo > .gros + .gros { margin-top: 0; }
+    #boutonFin { margin-top: .8rem; }
     .duo + .gros { margin-top: .8rem; }
     details { margin-top: 1.2rem; background: var(--carte); border: 1px solid var(--bord); border-radius: var(--rayon); padding: .8rem 1rem; }
     summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: .5rem; }
@@ -879,7 +883,10 @@
     // Quatre sons bien différents :
     function sonTick()   { note(500, 0, 0.12, 0.3); }                                  // compte à rebours : tic grave et court
     function sonGo()     { note(1000, 0, 0.7, 0.4); note(1500, 0, 0.7, 0.25); vibrer(200); } // départ : note aiguë et longue
-    function sonManche() { note(700, 0, 0.18, 0.4, "triangle"); note(700, 0.25, 0.18, 0.4, "triangle"); vibrer([150, 80, 150]); } // fin de manche : double bip
+    function sonManche() { // fin de manche : carillon montant (3 notes), bien distinct des bips de la fin
+      note(660, 0, 0.4, 0.45, "triangle"); note(880, 0.22, 0.4, 0.45, "triangle"); note(1175, 0.44, 0.7, 0.45, "triangle");
+      vibrer([200, 100, 200, 100, 200]);
+    }
     function sonFin()    { [880, 880, 880].forEach((f, i) => note(f, i * 0.4, 0.3, 0.45, "square")); note(1320, 1.3, 1, 0.4, "square"); vibrer([400, 150, 400, 150, 800]); } // fin : triple bip + note longue
 
     // ---------- Chronomètre avec sous-chronomètre ----------
@@ -980,7 +987,8 @@
     function rendre() {
       const N = chrono.manches, T = chrono.totalMs;
       const grand = $("affichageChrono");
-      grand.classList.remove("fini", "depart");
+      grand.classList.remove("fini", "depart", "derniere");
+      $("barre").classList.remove("derniere"); $("etiquetteChrono").classList.remove("derniere");
       $("infoTotal").hidden = N <= 1;
       $("barre").hidden = N <= 1;
 
@@ -996,7 +1004,9 @@
       const resteManche = chrono.limites[i + 1] - ecoule;
       grand.textContent = mm_ss(Math.ceil((N > 1 ? resteManche : restant) / 1000));
       if (chrono.phase === "fini") grand.classList.add("fini");
-      $("etiquetteChrono").textContent = chrono.phase === "fini" ? "Terminé" : (N > 1 ? "Manche " + (i + 1) + " / " + N : "Chronomètre");
+      const derniere = N > 1 && i === N - 1 && chrono.phase !== "fini" && chrono.phase !== "repos";
+      if (derniere) { grand.classList.add("derniere"); $("barre").classList.add("derniere"); $("etiquetteChrono").classList.add("derniere"); }
+      $("etiquetteChrono").textContent = chrono.phase === "fini" ? "Terminé" : derniere ? "Dernière manche (" + (i + 1) + " / " + N + ")" : (N > 1 ? "Manche " + (i + 1) + " / " + N : "Chronomètre");
       $("totalChrono").textContent = mm_ss(Math.ceil(restant / 1000));
       $("barreRemplie").style.width = (T ? 100 * ecoule / T : 0) + "%";
       return i;
