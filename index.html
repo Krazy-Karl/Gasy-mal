@@ -122,6 +122,9 @@
     .manche-ligne .mn { flex: 1; font-weight: 600; white-space: nowrap; }
     .manche-ligne input { width: 4.2rem; min-width: 0; text-align: center; padding: .5rem .2rem; }
     .manche-ligne .unite { color: var(--discret); font-size: .85rem; }
+    .pas { display: flex; align-items: center; gap: .4rem; }
+    .pas input { width: 4.4rem; min-width: 0; text-align: center; font-weight: 700; font-size: 1.2rem; padding: .4rem .2rem; }
+    .resume-fin { text-align: center; color: var(--discret); margin: 1rem 0; }
     .aide { color: var(--discret); font-size: .85rem; margin: .3rem 0 0; }
 
     /* ----- Points en pleine partie ----- */
@@ -226,9 +229,11 @@
 
       <button id="boutonPoints" class="gros secondaire"><span class="material-symbols-rounded">add_circle</span><span id="boutonPointsTexte">Attribuer des points</span></button>
       <section id="panneauPoints" hidden>
-        <p class="aide" style="margin-top:0">Touchez un nom pour lui donner 1 point.</p>
+        <p class="aide" style="margin-top:0">Touchez un nom pour lui donner 1 point. Rien n'est enregistré avant « Terminer la partie ».</p>
         <ul id="listePoints" class="carte-liste"></ul>
       </section>
+
+      <button id="boutonFin" class="gros secondaire"><span class="material-symbols-rounded">flag</span><span id="boutonFinTexte">Terminer la partie</span></button>
 
       <details>
         <summary><span class="material-symbols-rounded">settings</span>Régler le chronomètre</summary>
@@ -257,6 +262,18 @@
           <input id="chronoDelai" type="number" inputmode="numeric" min="0" max="10" value="3">
         </label>
       </details>
+    </section>
+
+    <!-- FIN DE PARTIE : revoir et valider les points de tout le monde -->
+    <section id="vue-fin" class="vue" hidden>
+      <p class="aide" style="margin:0 0 .8rem">Ajustez les points de chaque joueur pour cette partie, puis validez. Rien n'est enregistré avant.</p>
+      <ul id="listeFin" class="carte-liste"></ul>
+      <p id="resumeFin" class="resume-fin"></p>
+      <div class="duo">
+        <button id="finRetour" class="gros secondaire">Retour</button>
+        <button id="finValider" class="gros"><span class="material-symbols-rounded">check</span>Valider</button>
+      </div>
+      <button id="finZero" class="puce" style="margin-top:1rem">Tout remettre à zéro</button>
     </section>
 
     <!-- POINTS : consultation -->
@@ -411,7 +428,7 @@
     })();
 
     // ---------- Navigation ----------
-    const TITRES = { accueil: "Gasy-mal", partie: "Partie", points: "Points", joueurs: "Joueurs" };
+    const TITRES = { accueil: "Gasy-mal", partie: "Partie", fin: "Fin de partie", points: "Points", joueurs: "Joueurs" };
     let vueActuelle = "accueil";
 
     function afficherVue(nom) {
@@ -422,6 +439,7 @@
       $("retour").hidden = nom === "accueil";
       $("actualiser").hidden = nom === "accueil";
       if (nom === "partie") { if (chrono.phase === "course" || chrono.phase === "depart") garderEcran(); } else libererEcran();
+      if (nom === "fin") afficherFin();
       if (nom !== "accueil") charger(true);
       window.scrollTo(0, 0);
     }
@@ -480,9 +498,10 @@
       if (local.renomme) {
         const { ancien, nouveau } = local.renomme;
         lignes.forEach(l => { if (l.joueur === ancien) { l.joueur = nouveau; renommees.push(l); } });
-        if (pointsPartie[ancien] !== undefined) { pointsPartie[nouveau] = (pointsPartie[nouveau] || 0) + pointsPartie[ancien]; delete pointsPartie[ancien]; }
+        if (pointsPartie[ancien] !== undefined) { pointsPartie[nouveau] = (pointsPartie[nouveau] || 0) + pointsPartie[ancien]; delete pointsPartie[ancien]; sauverCompteur(); }
       }
       if (local.ajoute) lignes.push(local.ajoute);
+      if (local.ajouteListe) local.ajouteListe.forEach(l => lignes.push(l));
       if (local.supprime) {
         index = lignes.findIndex(l => l.id === local.supprime.id);
         if (index >= 0) lignes.splice(index, 1);
@@ -496,6 +515,10 @@
           lignes = lignes.filter(l => l !== local.ajoute);
           if (donnees.ligne) { if (!lignes.some(l => l.id === donnees.ligne.id)) lignes.push(donnees.ligne); }
         }
+        if (local.ajouteListe) {
+          lignes = lignes.filter(l => !local.ajouteListe.includes(l));
+          (donnees.ajoutees || []).forEach(n => { if (!lignes.some(l => l.id === n.id)) lignes.push(n); });
+        }
         if (local.supprime) suppressionsEnAttente.delete(local.supprime.id);
         if (donnees.lignes) appliquerServeur(donnees.lignes); // ancienne version du script : renvoie toute la liste
         derniereMaj = Date.now();
@@ -505,9 +528,10 @@
         if (local.renomme) {
           const { ancien, nouveau } = local.renomme;
           renommees.forEach(l => { l.joueur = ancien; });
-          if (pointsPartie[nouveau] !== undefined) { pointsPartie[ancien] = (pointsPartie[ancien] || 0) + pointsPartie[nouveau]; delete pointsPartie[nouveau]; }
+          if (pointsPartie[nouveau] !== undefined) { pointsPartie[ancien] = (pointsPartie[ancien] || 0) + pointsPartie[nouveau]; delete pointsPartie[nouveau]; sauverCompteur(); }
         }
         if (local.ajoute) lignes = lignes.filter(l => l !== local.ajoute);
+        if (local.ajouteListe) lignes = lignes.filter(l => !local.ajouteListe.includes(l));
         if (local.supprime) {
           suppressionsEnAttente.delete(local.supprime.id);
           if (index >= 0) lignes.splice(index, 0, local.supprime); else lignes.push(local.supprime);
@@ -556,11 +580,13 @@
       const liste = $("classement"); liste.textContent = "";
       const classement = calculer(saisonChoisie);
       if (!classement.length) liste.appendChild(el("li", "vide", "Aucun joueur pour le moment."));
+      let rangAffiche = 0;
       classement.forEach((c, k) => {
+        if (k === 0 || c.mois !== classement[k - 1].mois) rangAffiche = k + 1; // égalité = même rang
         const li = el("li");
         const rang = el("span", "rang");
-        if (c.mois > 0 && k < 3) { rang.classList.add("r" + (k + 1)); rang.appendChild(icone("emoji_events")); }
-        else rang.textContent = String(k + 1);
+        if (c.mois > 0 && rangAffiche <= 3) { rang.classList.add("r" + rangAffiche); rang.appendChild(icone("emoji_events")); }
+        else rang.textContent = c.mois === 0 ? "–" : String(rangAffiche);
         li.appendChild(rang);
         li.appendChild(el("span", "nom", c.joueur));
         const score = el("span", "score", String(c.mois));
@@ -662,8 +688,18 @@
     });
     $("feuille").addEventListener("click", ev => { if (ev.target === $("feuille")) $("feuille").close(); });
 
-    // ---------- Points en pleine partie ----------
-    const pointsPartie = {}; // joueur -> points donnés pendant cette partie
+    // ---------- Points en pleine partie : un simple compteur, rien n'est enregistré ----------
+    // Le compteur est gardé sur le téléphone jusqu'à la validation en fin de partie (ou remise à zéro).
+    function chargerCompteur() {
+      try { const o = JSON.parse(lireLocal("pointsPartie", "{}")); return o && typeof o === "object" ? o : {}; } catch (e) { return {}; }
+    }
+    const pointsPartie = chargerCompteur(); // joueur -> points gagnés pendant la partie en cours (jamais négatif)
+    function sauverCompteur() { ecrireLocal("pointsPartie", JSON.stringify(pointsPartie)); majBoutonFin(); }
+    function totalCompteur() { return Object.values(pointsPartie).reduce((a, n) => a + n, 0); }
+    function majBoutonFin() {
+      const t = totalCompteur();
+      $("boutonFinTexte").textContent = t > 0 ? "Terminer la partie (" + t + " pt" + (t > 1 ? "s" : "") + ")" : "Terminer la partie";
+    }
 
     $("boutonPoints").addEventListener("click", () => {
       const ouvert = $("panneauPoints").hidden;
@@ -671,6 +707,13 @@
       $("boutonPointsTexte").textContent = ouvert ? "Masquer les points" : "Attribuer des points";
       if (ouvert) afficherPanneauPoints();
     });
+
+    function pointLocal(joueur, delta) {
+      const n = Math.max(0, (pointsPartie[joueur] || 0) + delta); // pas de score négatif en pleine partie
+      if (n === 0) delete pointsPartie[joueur]; else pointsPartie[joueur] = n;
+      sauverCompteur();
+      afficherPanneauPoints();
+    }
 
     function afficherPanneauPoints() {
       const liste = $("listePoints"); liste.textContent = "";
@@ -685,26 +728,80 @@
         b.setAttribute("aria-label", "Donner 1 point à " + nom);
         b.appendChild(el("span", "nom", nom));
         const n = pointsPartie[nom] || 0;
-        b.appendChild(el("span", "badge" + (n ? "" : " zero"), n ? signe(n) : "0"));
+        b.appendChild(el("span", "badge" + (n ? "" : " zero"), n ? "+" + n : "0"));
         const plus = el("span", "plus"); plus.appendChild(icone("add"));
         b.appendChild(plus);
-        b.addEventListener("click", () => pointRapide(nom, 1));
+        b.addEventListener("click", () => pointLocal(nom, 1));
         li.appendChild(b);
         const moins = el("button", "suppr");
         moins.appendChild(icone("remove"));
         moins.setAttribute("aria-label", "Retirer 1 point à " + nom);
-        moins.addEventListener("click", () => pointRapide(nom, -1));
+        moins.disabled = n === 0;
+        moins.addEventListener("click", () => pointLocal(nom, -1));
         li.appendChild(moins);
         liste.appendChild(li);
       });
     }
 
-    async function pointRapide(joueur, delta) {
-      pointsPartie[joueur] = (pointsPartie[joueur] || 0) + delta;
-      afficherPanneauPoints();
-      const ok = await ecrire({ action: "ajouter", joueur, points: delta }, { ajoute: nouvelleLigne(joueur, delta) });
-      if (!ok) { pointsPartie[joueur] -= delta; afficherPanneauPoints(); }
+    // ---------- Fin de partie : revoir les points de tout le monde, puis valider ----------
+    let saisieFin = {}; // joueur -> points saisis sur la page de fin de partie
+
+    $("boutonFin").addEventListener("click", () => { location.hash = "fin"; });
+    $("finRetour").addEventListener("click", () => { location.hash = "partie"; });
+
+    function afficherFin() {
+      saisieFin = {};
+      nomsJoueurs().forEach(nom => { saisieFin[nom] = pointsPartie[nom] || 0; });
+      const liste = $("listeFin"); liste.textContent = "";
+      const noms = Object.keys(saisieFin);
+      if (!noms.length) liste.appendChild(el("li", "vide", "Aucun joueur. Ajoutez-en depuis l'écran Joueurs."));
+      noms.forEach(nom => {
+        const li = el("li");
+        li.appendChild(el("span", "nom", nom));
+        const pas = el("div", "pas");
+        const moins = el("button", "icone"); moins.type = "button"; moins.appendChild(icone("remove")); moins.setAttribute("aria-label", "Retirer 1 point à " + nom);
+        const champ = el("input"); champ.type = "number"; champ.inputMode = "numeric"; champ.step = "1"; champ.min = "-1000"; champ.max = "1000";
+        champ.value = saisieFin[nom]; champ.setAttribute("aria-label", "Points de " + nom);
+        const plus = el("button", "icone"); plus.type = "button"; plus.appendChild(icone("add")); plus.setAttribute("aria-label", "Ajouter 1 point à " + nom);
+        const maj = v => { saisieFin[nom] = v; champ.value = v; majResumeFin(); };
+        moins.addEventListener("click", () => maj((Number(champ.value) || 0) - 1));
+        plus.addEventListener("click", () => maj((Number(champ.value) || 0) + 1));
+        champ.addEventListener("input", () => { saisieFin[nom] = Number(champ.value) || 0; majResumeFin(); });
+        pas.appendChild(moins); pas.appendChild(champ); pas.appendChild(plus);
+        li.appendChild(pas);
+        liste.appendChild(li);
+      });
+      majResumeFin();
     }
+    function majResumeFin() {
+      const gagnants = Object.entries(saisieFin).filter(([, n]) => n !== 0);
+      const total = gagnants.reduce((a, [, n]) => a + n, 0);
+      $("resumeFin").textContent = gagnants.length
+        ? gagnants.length + " joueur" + (gagnants.length > 1 ? "s" : "") + " · total " + signe(total) + " pt" + (Math.abs(total) > 1 ? "s" : "")
+        : "Aucun point à enregistrer.";
+      $("finValider").disabled = !gagnants.length;
+    }
+    $("finZero").addEventListener("click", () => {
+      for (const k in pointsPartie) delete pointsPartie[k];
+      sauverCompteur(); afficherPanneauPoints(); afficherFin();
+    });
+
+    $("finValider").addEventListener("click", async () => {
+      const gains = Object.entries(saisieFin).filter(([, n]) => n !== 0).map(([joueur, points]) => ({ joueur, points }));
+      if (!gains.length) { statut("Aucun point à enregistrer.", "erreur", 3000); return; }
+      if (gains.some(g => !Number.isInteger(g.points) || Math.abs(g.points) > 1000)) { statut("Les points doivent être des nombres entiers (entre -1000 et 1000).", "erreur", 4000); return; }
+      if (!confirm("Enregistrer ces points ?\n\n" + gains.map(g => g.joueur + " : " + signe(g.points)).join("\n"))) return;
+      const sauvegarde = Object.assign({}, pointsPartie);
+      for (const k in pointsPartie) delete pointsPartie[k];
+      sauverCompteur(); afficherPanneauPoints();
+      location.hash = "points"; // on voit tout de suite le résultat dans le classement
+      const ok = await ecrire({ action: "ajouterPlusieurs", gains }, { ajouteListe: gains.map(g => nouvelleLigne(g.joueur, g.points)) });
+      if (ok) statut("Points enregistrés.", "ok", 2500);
+      else { // échec : on remet le compteur et on revient à la page pour réessayer
+        Object.assign(pointsPartie, sauvegarde); sauverCompteur(); afficherPanneauPoints();
+        location.hash = "fin";
+      }
+    });
 
     // ---------- Sons ----------
     let ctxAudio = null;
@@ -893,8 +990,6 @@
         if (r.total <= 0) { statut("Entrez une durée supérieure à 0.", "erreur", 3000); return; }
         if (r.manches.some(d => d <= 0)) { statut("Chaque manche doit durer au moins 1 seconde.", "erreur", 3000); return; }
         statut("");
-        for (const k in pointsPartie) delete pointsPartie[k]; // nouvelle partie : compteurs à zéro
-        afficherPanneauPoints();
         chrono.mancheVue = 0; chrono.departVu = 0;
         if (r.delai > 0) { chrono.phase = "depart"; chrono.depart = Date.now() + r.delai * 1000; }
         else { chrono.phase = "course"; chrono.fin = Date.now() + chrono.restantMs; sonGo(); }
@@ -934,6 +1029,7 @@
     })();
     try { if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js"); } catch (e) {}
     majThemeInterface();
+    majBoutonFin();
     construireManches();
     initialiserChrono();
     route();

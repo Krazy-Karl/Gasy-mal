@@ -51,6 +51,32 @@ function doPost(e) {
       return reponse({ ok: true, ligne: ajouterLigne(joueur, points) });
     }
 
+    if (d.action === "ajouterPlusieurs") { // fin de partie : tous les points d'un coup, en une seule écriture
+      const gains = Array.isArray(d.gains) ? d.gains : [];
+      if (!gains.length || gains.length > 50) return reponse({ ok: false, erreur: "Liste de points invalide." });
+      const maintenant = new Date();
+      const tz = Session.getScriptTimeZone();
+      const date = Utilities.formatDate(maintenant, tz, "yyyy-MM-dd HH:mm");
+      const saison = Utilities.formatDate(maintenant, tz, "yyyy-MM");
+      const lignes = [], ajoutees = [];
+      for (let i = 0; i < gains.length; i++) {
+        const joueur = nettoyer(gains[i].joueur);
+        const points = Number(gains[i].points);
+        if (!joueur) return reponse({ ok: false, erreur: "Le nom du joueur est obligatoire." });
+        if (!isFinite(points) || points === 0 || Math.abs(points) > POINTS_MAX) {
+          return reponse({ ok: false, erreur: "Points invalides pour " + joueur + "." });
+        }
+        const id = Utilities.getUuid();
+        lignes.push([id, date, saison, joueur, points]);
+        ajoutees.push({ id: id, date: date, saison: saison, joueur: joueur, points: points });
+      }
+      const f = feuille();
+      const debut = f.getLastRow() + 1;
+      f.getRange(debut, 3, lignes.length, 1).setNumberFormat("@"); // "2026-11" reste du texte
+      f.getRange(debut, 1, lignes.length, 5).setValues(lignes);
+      return reponse({ ok: true, ajoutees: ajoutees });
+    }
+
     if (d.action === "creerJoueur") {
       const joueur = nettoyer(d.joueur);
       if (!joueur) return reponse({ ok: false, erreur: "Le nom du joueur est obligatoire." });
