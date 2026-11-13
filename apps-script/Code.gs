@@ -133,3 +133,27 @@ function reponse(objet) {
     .createTextOutput(JSON.stringify(objet))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+// =====================================================================
+// IMPORT UNIQUE : joueurs de la Saison 12 (novembre 2026)
+// À lancer UNE FOIS à la main (menu "Exécuter"). Sans risque de doublon :
+// un joueur déjà présent dans la feuille est ignoré.
+// Mettez AVEC_POINTS à false pour créer les joueurs à 0 point.
+// Vous pourrez supprimer cette fonction ensuite.
+// =====================================================================
+function importerSaison12() {
+  const AVEC_POINTS = true;
+  const JOUEURS = [
+    ["Joel", 24], ["Diamondra", 23], ["Tsiory", 19], ["Hannah", 18],
+    ["Saraha", 12], ["Koloina", 12], ["Tiffany", 3], ["Karl", 1]
+  ];
+  migrer(feuille());
+  const existants = lireLignes().map(l => l.joueur.toLowerCase());
+  let ajoutes = 0, ignores = [];
+  JOUEURS.forEach(function (j) {
+    if (existants.indexOf(j[0].toLowerCase()) !== -1) { ignores.push(j[0]); return; }
+    ajouterLigne(j[0], AVEC_POINTS ? j[1] : 0);
+    ajoutes++;
+  });
+  Logger.log(ajoutes + " joueur(s) ajouté(s)." + (ignores.length ? " Déjà présents, ignorés : " + ignores.join(", ") : ""));
+}
